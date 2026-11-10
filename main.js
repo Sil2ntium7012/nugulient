@@ -386,7 +386,7 @@ ipcMain.handle("auth:init", async () => {
       log("[자동 로그인] 저장된 계정: " + r.profile.name);
       return { ok: true, profile: r.profile, source: "saved" };
     } catch (err) {
-      log("[자동 로그인] 저장된 계정 갱신 실패: " + (err?.message || err));
+      log("[자동 로그인] 저장된 계정 갱신 실패: " + loginErrorCode(err));
     }
   }
   // 2) 노바 클라이언트 로그인 기록 (여기서 로그아웃한 적이 있으면 다시 가져오지 않음)
@@ -399,7 +399,7 @@ ipcMain.handle("auth:init", async () => {
       log("[자동 로그인] 노바 클라이언트 계정: " + r.profile.name);
       return { ok: true, profile: r.profile, source: "nova" };
     } catch (err) {
-      log("[자동 로그인] 노바 계정 갱신 실패: " + (err?.message || err));
+      log("[자동 로그인] 노바 계정 갱신 실패: " + loginErrorCode(err));
     }
   }
   // 갱신은 실패했어도 이름은 보여줄 수 있게
@@ -433,12 +433,35 @@ ipcMain.handle("auth:login", async () => {
     log("[로그인] " + profile.name);
     return { ok: true, profile };
   } catch (err) {
-    const msg = String(err?.message || err);
-    log("[로그인] 실패: " + msg);
-    if (/cancel|closed|error\.gui\.closed/i.test(msg)) return { ok: false, cancelled: true };
-    return { ok: false, error: "로그인하지 못했어요. 다시 시도해 주세요." };
+    const code = loginErrorCode(err);
+    log("[로그인] 실패: " + code + (err?.response?.status ? ` (HTTP ${err.response.status})` : "") + (err?.stack ? " | " + String(err.stack).split("\n")[0] : ""));
+    if (/cancel|error\.gui\.closed/i.test(code)) return { ok: false, cancelled: true };
+    return { ok: false, error: loginErrorText(code) };
   }
 });
+
+// msmc 는 오류를 "error.xxx" 문자열이나 { ts, response } 객체로 던짐
+function loginErrorCode(err) {
+  if (typeof err === "string") return err;
+  if (err?.ts) return String(err.ts);
+  if (err?.name && String(err.name).startsWith("error.")) return String(err.name);
+  return String(err?.message || err?.code || err || "unknown");
+}
+
+function loginErrorText(code) {
+  const c = String(code);
+  if (c.includes("xsts.userNotFound")) return "이 마이크로소프트 계정에 Xbox 프로필이 없어요. xbox.com 에 한 번 로그인해서 프로필을 만든 뒤 다시 해 주세요.";
+  if (c.includes("xsts.child")) return "만 18세 미만 계정은 보호자가 Xbox 가족 설정에서 허락해 줘야 로그인할 수 있어요.";
+  if (c.includes("xsts.bannedCountry")) return "Xbox Live 를 쓸 수 없는 지역의 계정이에요.";
+  if (c.includes("minecraft.entitlements")) return "이 계정은 마인크래프트 자바 에디션을 갖고 있지 않아요. (게임패스면 공식 런처를 한 번 실행해 주세요)";
+  if (c.includes("minecraft.profile")) return "마인크래프트 프로필(닉네임)이 아직 없어요. 공식 런처에서 닉네임을 먼저 만들어 주세요.";
+  if (c.includes("error.auth.microsoft")) return "마이크로소프트 로그인이 만료됐어요. 다시 로그인해 주세요.";
+  if (c.includes("error.auth.xboxLive") || c.includes("error.auth.xsts")) return "Xbox 서버에 로그인하지 못했어요. 잠시 뒤 다시 해 주세요.";
+  if (c.includes("error.auth.minecraft")) return "마인크래프트 서버에 로그인하지 못했어요. 잠시 뒤 다시 해 주세요.";
+  if (c.includes("error.state") || c.includes("error.gui")) return "로그인 창을 열지 못했어요. 런처를 껐다 켜고 다시 해 주세요.";
+  if (/ENOTFOUND|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|network|fetch failed/i.test(c)) return "인터넷 연결을 확인해 주세요. (마이크로소프트 서버에 닿지 않았어요)";
+  return "로그인하지 못했어요. 다시 시도해 주세요. (" + c.slice(0, 60) + ")";
+}
 
 ipcMain.handle("auth:logout", () => {
   cachedAuth = null;
@@ -766,7 +789,7 @@ ipcMain.handle("launch:start", async () => {
         cachedAuth = r.mclcAuth;
         saveAccount(r.profile, r.refreshable, acc.source);
       } catch (err) {
-        log("[실행] 토큰 갱신 실패: " + (err?.message || err));
+        log("[실행] 토큰 갱신 실패: " + loginErrorCode(err));
       }
     }
 
