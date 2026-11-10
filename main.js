@@ -1916,6 +1916,46 @@ function builtinModSource() {
   return null;
 }
 
+// Luna's Light 실시간 업데이트: Nova-Mod publish.cmd 가 올리는 GitHub 릴리스 "latest" 를 실행할 때마다 확인
+// (Nova Client 와 같은 곳). 바뀌었으면 %APPDATA%\Nugulient\novamod 에 받아 두고, builtinModSource() 가 그걸 먼저 씀.
+const NOVA_MOD_RELEASE_URL = "https://api.github.com/repos/Sil2ntium7012/nova-mod/releases/tags/latest";
+
+async function updateBuiltinModFromRelease() {
+  const meta = store.get("novaModRelease") || {};
+  try {
+    const headers = { "User-Agent": USER_AGENT, Accept: "application/vnd.github+json" };
+    if (meta.etag) headers["If-None-Match"] = meta.etag;
+    const res = await fetch(NOVA_MOD_RELEASE_URL, { headers, timeout: 8000 });
+    if (res.status === 304) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rel = await res.json();
+    const v = SERVER.mcVersion;
+    const asset = (rel.assets || []).find((a) => a.name.startsWith(`${BUILTIN_PREFIX}${v}-`) && (a.name.endsWith(`.mc${v}.jar`) || a.name.endsWith(`+mc${v}.jar`)));
+    if (!asset) { log(`[내장 모드] 릴리스에 ${v} 용 jar 가 없음`); return; }
+    const key = `rel:${asset.id}:${asset.updated_at}:${asset.size}`;
+    const name = asset.name.replace(new RegExp(`\\.mc${v.replace(/\./g, "\\.")}\\.jar$`), `+mc${v}.jar`); // GitHub 이 "+" 를 "." 로 바꿈
+    const dir = path.join(ROOT, "novamod");
+    const dest = path.join(dir, name);
+    if (meta.key === key && fs.existsSync(dest)) { store.set("novaModRelease", { ...meta, etag: res.headers.get("etag") || meta.etag }); return; }
+    progress("fabric", 78, "너굴라이언트 모드 업데이트 받는 중");
+    const dl = await fetch(asset.browser_download_url, { headers: { "User-Agent": USER_AGENT }, timeout: 60000 });
+    if (!dl.ok) throw new Error(`받기 HTTP ${dl.status}`);
+    const buf = await dl.buffer();
+    if (buf.length !== asset.size) throw new Error(`크기가 달라요 (${buf.length} / ${asset.size})`);
+    const digest = String(asset.digest || "");
+    if (digest.startsWith("sha256:") && require("crypto").createHash("sha256").update(buf).digest("hex") !== digest.slice(7)) throw new Error("해시가 달라요");
+    if (!new AdmZip(buf).getEntry("fabric.mod.json")) throw new Error("모드 jar 가 아니에요");
+    await fsp.mkdir(dir, { recursive: true });
+    await fsp.writeFile(dest + ".part", buf);
+    for (const f of fs.readdirSync(dir)) if (f.startsWith(BUILTIN_PREFIX) && f.includes(`+mc${v}.jar`) && f !== name) await fsp.rm(path.join(dir, f), { force: true });
+    await fsp.rename(dest + ".part", dest);
+    store.set("novaModRelease", { key, etag: res.headers.get("etag") || null, at: Date.now() });
+    log(`[내장 모드] 새 버전 받음: ${name} (${asset.updated_at})`);
+  } catch (err) {
+    log("[내장 모드] 업데이트 확인 실패(있던 jar 사용): " + (err?.message || err));
+  }
+}
+
 async function ensureModChecker() {
   const dest = path.join(DIRS.mod, MODCHECKER_NAME);
   const meta = store.get("modcheckerMeta") || {};
@@ -1948,6 +1988,7 @@ async function ensureModChecker() {
 async function prepareBuiltinMods() {
   progress("fabric", 80, "너굴라이언트 모드 준비 중");
   // 꺼둔(.disabled) 것도 포함해서 우리 모드 옛 파일 정리
+  await updateBuiltinModFromRelease();
   const files = await modFiles();
   const src = builtinModSource();
   if (src) {
