@@ -1,0 +1,75 @@
+{
+  "name": "nugulient",
+  "productName": "너굴라이언트",
+  "version": "1.0.0",
+  "description": "너굴마을(mcng.kr) 전용 마인크래프트 런처",
+  "main": "main.js",
+  "author": "망고",
+  "license": "MIT",
+  "repository": "https://github.com/Sil2ntium7012/nugulient",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node scripts/make-icon.js",
+    "predist:win": "node scripts/make-icon.js",
+    "dist:win": "electron-builder --win nsis --publish never",
+    "predist:win:publish": "node scripts/make-icon.js",
+    "dist:win:publish": "electron-builder --win nsis --publish always"
+  },
+  "build": {
+    "appId": "kr.mcng.nugulient",
+    "productName": "너굴라이언트",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "catalog.js",
+      "src/**/*",
+      "package.json",
+      "build/icon.png"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Sil2ntium7012",
+        "repo": "nugulient",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Nugulient-Setup.exe",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "너굴라이언트",
+      "runAfterFinish": true
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.0",
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.11",
+    "extract-zip": "^2.0.1",
+    "minecraft-launcher-core": "^3.18.2",
+    "msmc": "^5.0.5",
+    "node-fetch": "^2.7.0",
+    "tar": "^6.2.1"
+  },
+  "devDependencies": {
+    "electron": "^31.0.2",
+    "electron-builder": "^24.13.3"
+  }
+}

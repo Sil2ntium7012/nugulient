@@ -1,0 +1,41 @@
+name: Build Nugulient
+
+# 터미널 없이 설치 파일 만들기
+# - main 에 올리면 설치 파일(Nugulient-Setup.exe)이 Actions > Artifacts 에 생겨요.
+# - v1.0.1 처럼 "v"로 시작하는 태그를 올리면 GitHub Releases 에도 올라가서
+#   이미 설치한 사람들의 너굴라이언트가 자동으로 업데이트돼요.
+#   (package.json 의 version 을 먼저 올리고 태그를 만들어 주세요)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+
+      - name: 설치 파일 빌드
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run dist:win
+
+      - name: 설치 파일 빌드 + Releases 에 올리기 (자동 업데이트용)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run dist:win:publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nugulient-Setup
+          path: dist/*.exe

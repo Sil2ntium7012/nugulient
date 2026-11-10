@@ -1,0 +1,19 @@
+/* 런처 안에 넣었을 때 (런처 색이 그대로 들어옴) */
+html.embed, html.embed body { background: transparent !important; }
+html.embed body { font-family: var(--font, "SUIT", "Malgun Gothic", sans-serif); font-size: 14px; }
+html.embed .titlebar, html.embed .theme-dots, html.embed .nav[data-page="settings"], html.embed .side-gap { display: none !important; }
+html.embed .shell { height: 100%; grid-template-columns: minmax(0, 1fr) 290px; grid-template-rows: auto minmax(0, 1fr); }
+html.embed .side { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; padding: 0 0 12px; border: 0; gap: 8px; }
+html.embed .nav { width: auto; height: 38px; flex-direction: row; gap: 7px; padding: 0 16px; border-radius: 12px; }
+html.embed .nav svg { width: 17px; height: 17px; }
+html.embed .nav span { font-size: 13px; font-weight: 700; }
+html.embed .main { padding: 2px 16px 30px 0; }
+html.embed .right { padding: 2px 0 20px 0; }
+html.embed .page { max-width: none; }
+html.embed .card { box-shadow: none; }
+html.embed .card::before { display: none; }
+html.embed .hero { grid-template-columns: 1fr; }
+html.embed .two-col { grid-template-columns: minmax(0, 1fr) 300px; }
+html.embed .ana-row { grid-template-columns: 140px 84px 124px minmax(0, 1fr); }
+html.embed .calc-keys button { height: 40px; }
+html.embed .calc-chips button { font-size: 10.5px; white-space: nowrap; padding: 0; letter-spacing: -.02em; }
