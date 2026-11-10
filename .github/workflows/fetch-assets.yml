@@ -1,15 +1,18 @@
 name: Fetch site assets (one-off)
 on: workflow_dispatch
+permissions:
+  contents: write
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - run: |
-          mkdir out
-          curl -fsSL -A "Nugulient-build" -o out/logo.png https://mcng.kr/assets/img/logo.png
-          curl -fsSL -A "Nugulient-build" -o out/server-panorama.png "https://mcng.kr/assets/img/server-panorama.png?v=20260919"
-          ls -la out
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site-assets
-          path: out/
+          mkdir -p brand
+          curl -fsSL -A "Nugulient-build" -o brand/neogul-logo.png https://mcng.kr/assets/img/logo.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b site-assets
+          git add brand/neogul-logo.png
+          git commit -m "너굴마을 로고 (mcng.kr, 운영진 허락 - 비상업적)"
+          git push -f origin site-assets
