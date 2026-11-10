@@ -48,6 +48,19 @@ jobs:
           npm version "$next" --no-git-tag-version --allow-same-version
           echo "VERSION=$next" >> "$GITHUB_ENV"
 
+      - name: 노바 모드 서명 키 넣기 (GitHub 비밀값 NOVA_SIG)
+        shell: bash
+        env:
+          NOVA_SIG: ${{ secrets.NOVA_SIG }}
+        run: |
+          if [ -n "$NOVA_SIG" ]; then
+            printf '%s' "$NOVA_SIG" > nova-sig.json
+            node -e "JSON.parse(require('fs').readFileSync('nova-sig.json','utf8')).parts.length===2||process.exit(1)"
+            echo "서명 키 넣음"
+          else
+            echo "::warning::NOVA_SIG 비밀값이 없어서 노바 모드 기능이 꺼진 채로 빌드돼요 (Settings > Secrets and variables > Actions 에 추가)"
+          fi
+
       - run: npm install
 
       - name: 설치 파일 빌드 (테스트용)

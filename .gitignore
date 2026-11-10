@@ -13,3 +13,6 @@ music/
 
 # 릴리스 워크플로가 빌드할 때 자동 생성 (build/release-notes.js)
 RELEASE_NOTES.md
+
+# 노바 모드 실행 서명 키 - 저장소(공개)에 절대 올리지 말 것. 빌드 때 GitHub 비밀값 NOVA_SIG 로 만들어짐
+nova-sig.json

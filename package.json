@@ -25,7 +25,8 @@
       "catalog.js",
       "src/**/*",
       "package.json",
-      "build/icon.png"
+      "build/icon.png",
+      "nova-sig.json"
     ],
     "publish": [
       {

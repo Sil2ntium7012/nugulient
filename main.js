@@ -2045,6 +2045,40 @@ const NEOGUL_INGAME_THEME = {
   },
 };
 
+// 새 모드(49-259차~)는 Ed25519 서명(sig2)만 믿음. 예전 HMAC sig 는 옛 모드용으로 같이 씀.
+// 개인 키는 저장소(공개)에 두지 않고, 빌드할 때 GitHub 비밀값 NOVA_SIG 로 nova-sig.json 을 만들어 넣음.
+// (형 PC 의 개발 폴더에는 nova-sig.json 을 따로 둠 - .gitignore 됨)
+let novaSignKeyCache;
+function novaSignKey() {
+  if (novaSignKeyCache !== undefined) return novaSignKeyCache;
+  novaSignKeyCache = null;
+  try {
+    const f = path.join(__dirname, "nova-sig.json");
+    if (!fs.existsSync(f)) {
+      log("[노바 모드] nova-sig.json 이 없어서 새 서명(sig2)을 못 붙임 - 모드 기능이 꺼질 수 있어요");
+      return null;
+    }
+    const { parts } = JSON.parse(fs.readFileSync(f, "utf-8"));
+    const mask = crypto.createHash("sha256").update("NovaClient|launch|mask|49-259").digest();
+    const raw = Buffer.from(parts.join(""), "hex");
+    for (let i = 0; i < raw.length; i++) raw[i] ^= mask[i % mask.length];
+    novaSignKeyCache = crypto.createPrivateKey({ key: raw, format: "der", type: "pkcs8" });
+  } catch (err) {
+    log("[노바 모드] 서명 키 읽기 실패: " + (err?.message || err));
+  }
+  return novaSignKeyCache;
+}
+function novaSig2(kind, ts, body) {
+  const key = novaSignKey();
+  if (!key) return "";
+  try {
+    return crypto.sign(null, Buffer.from("NovaSig|v1|" + kind + "|" + ts + "|" + (body || ""), "utf-8"), key).toString("base64");
+  } catch (err) {
+    log("[노바 모드] 실행 서명(sig2) 실패: " + (err?.message || err));
+    return "";
+  }
+}
+
 async function writeModLaunchFile(pendingServer) {
   try {
     const ts = Date.now();
@@ -2063,7 +2097,7 @@ async function writeModLaunchFile(pendingServer) {
       setupPrefsPath: SETUP_PREFS,
       ...(pendingServer ? { pendingServer: `${SERVER.host}:${SERVER.port}`, pendingServerName: SERVER.name } : {}),
     };
-    await fsp.writeFile(path.join(GAME_DIR, ".luna-launch.json"), JSON.stringify({ ts, sig: sigFor("LunaClient::"), ...payload }), "utf-8");
+    await fsp.writeFile(path.join(GAME_DIR, ".luna-launch.json"), JSON.stringify({ ts, sig: sigFor("LunaClient::"), sig2: novaSig2("launch", ts, ""), ...payload }), "utf-8");
     await fsp.writeFile(path.join(GAME_DIR, ".nova-launch.json"), JSON.stringify({ ts, sig: sigFor("NovaClient::"), ...payload }), "utf-8");
   } catch (err) {
     log("[내장 모드] 실행 토큰 기록 실패: " + (err?.message || err));
