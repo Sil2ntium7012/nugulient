@@ -69,6 +69,7 @@ jobs:
           git add package.json package-lock.json
           if git diff --cached --quiet; then echo "버전 그대로"; exit 0; fi
           git commit -m "v$VERSION 릴리스 [skip ci]"
+          git stash --include-untracked >/dev/null 2>&1 || true
           git pull --rebase origin main
           git push origin HEAD:main
 
