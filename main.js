@@ -775,7 +775,7 @@ ipcMain.handle("launch:start", async () => {
     const fabricId = await ensureFabric();
     ensureServerInList();
     // 내 클라이언트 모드(Luna's Light) · 너굴마을 모드체커 · Fabric API 를 항상 넣어 둠
-    const setupDone = await prepareBuiltinMods();
+    await prepareBuiltinMods();
 
     const s = getSettings();
     const launcher = new Client();
@@ -786,11 +786,12 @@ ipcMain.handle("launch:start", async () => {
       memory: { max: `${s.memoryGB}G`, min: "1G" },
       javaPath,
       window: { width: s.width, height: s.height, fullscreen: s.fullscreen },
-      // 플레이는 무조건 너굴마을로 바로 접속
-      // (이 PC 에서 모드 처음 설정을 아직 안 했으면, 모드가 설정을 띄운 뒤 너굴마을로 들어감)
-      ...(setupDone ? { quickPlay: { type: "multiplayer", identifier: `${SERVER.host}:${SERVER.port}` } } : {}),
+      // 플레이는 첫 실행부터 무조건 너굴마을로 바로 접속
+      quickPlay: { type: "multiplayer", identifier: `${SERVER.host}:${SERVER.port}` },
     };
-    await writeModLaunchFile(!setupDone);
+    await importOwnMinecraftOptions();
+    await applyFirstRunOptions();
+    await writeModLaunchFile(false);
 
     let lastPct = 0;
     launcher.on("progress", (e) => {
@@ -1939,7 +1940,87 @@ async function prepareBuiltinMods() {
   if (!files.some((f) => /^fabric-api-.*\.jar$/i.test(f)) && !installedProjectKeys().has(FABRIC_API_ID)) {
     try { await installProject(FABRIC_API_ID, "mod"); } catch (err) { log("[Fabric API] 설치 실패: " + (err?.message || err)); }
   }
-  return !src || fs.existsSync(SETUP_PREFS);
+  // 모드 "처음 설정" 화면 때문에 첫 접속이 미뤄지지 않게, 기본값으로 이미 한 것처럼 채워 둠
+  // (값은 망고가 노바클에서 처음 설정한 그대로. 게임 안에서 바꾸면 모드가 이 파일을 고침)
+  if (!fs.existsSync(SETUP_PREFS)) {
+    try {
+      fs.writeFileSync(SETUP_PREFS, JSON.stringify({ font: 0, guiScale: 2, tileView: 0, hudShape: 0, mouse: 0.25, window: 2, ts: Date.now() }));
+    } catch (err) {
+      log("[처음 설정] 기본값 기록 실패: " + (err?.message || err));
+    }
+  }
+}
+
+// ─── 본인 원래 마크 설정 가져오기 (처음 한 번만) ─────────────────────────────────
+// 공식 런처의 %APPDATA%\.minecraft\options.txt (조작 키 · 마우스 · 그래픽 · 언어 · 소리 …)를
+// 너굴라이언트 게임 폴더로 한 번만 복사함. 여기서 게임을 한 번이라도 켰으면(= version 줄이 있으면) 안 함.
+// 리소스팩 목록은 그쪽 폴더의 팩이라 빼고, 너굴라이언트에서 켠 팩 설정은 그대로 둠.
+async function importOwnMinecraftOptions() {
+  if (store.get("mcOptionsImported")) return;
+  try {
+    const mine = readOptions().filter((l) => l.trim() !== "");
+    if (getOption(mine, "version") !== null) {
+      store.set("mcOptionsImported", "skipped-already-played");
+      return;
+    }
+    const src = path.join(app.getPath("appData"), ".minecraft", "options.txt");
+    if (!fs.existsSync(src)) {
+      store.set("mcOptionsImported", "none");
+      return;
+    }
+    const SKIP = new Set(["resourcePacks", "incompatibleResourcePacks"]);
+    const theirs = fs.readFileSync(src, "utf-8").split(/\r?\n/).filter((l) => l.includes(":") && !SKIP.has(l.slice(0, l.indexOf(":"))));
+    const theirKeys = new Set(theirs.map((l) => l.slice(0, l.indexOf(":"))));
+    const keepOurs = mine.filter((l) => !theirKeys.has(l.slice(0, l.indexOf(":"))));
+    await fsp.writeFile(OPTIONS, [...theirs, ...keepOurs].join("\n") + "\n", "utf-8");
+    store.set("mcOptionsImported", "copied");
+    log(`[기본 설정] 원래 마크 설정 ${theirs.length}줄을 가져옴`);
+  } catch (err) {
+    log("[기본 설정] 원래 마크 설정 가져오기 실패(기본값으로 진행): " + (err?.message || err));
+  }
+}
+
+// ─── 마크 기본 설정 (처음 한 번만) ─────────────────────────────────────────────
+// options.txt 에 그 항목이 "없을 때만" 넣음 → 게임 안에서 한 번 바꾸면 다시는 안 건드림
+// (원래 마크 설정을 가져왔으면 언어 · 소리는 이미 들어 있어서 그대로 따라감)
+//   lang                 : 한국어
+//   soundCategory_master : 전체 소리 50%
+//   onboardAccessibility : 첫 실행 "접근성 안내" 화면 끔 (이게 뜨면 바로 접속이 막힘)
+//   skipMultiplayerWarning / joinedFirstServer / tutorialStep : 첫 멀티 접속 경고 · 튜토리얼 끔
+const FIRST_RUN_OPTIONS = {
+  lang: "ko_kr",
+  soundCategory_master: "0.5",
+  joinedFirstServer: "true",
+  tutorialStep: "none",
+};
+// 바로 접속을 막는 한 번짜리 안내 화면 - 설정이 아니라서 항상 끔
+const ALWAYS_OPTIONS = {
+  onboardAccessibility: "false",
+  skipMultiplayerWarning: "true",
+};
+async function applyFirstRunOptions() {
+  try {
+    const lines = readOptions().filter((l) => l.trim() !== "");
+    let added = 0;
+    for (const [k, v] of Object.entries(FIRST_RUN_OPTIONS)) {
+      if (getOption(lines, k) === null) {
+        lines.push(`${k}:${v}`);
+        added++;
+      }
+    }
+    for (const [k, v] of Object.entries(ALWAYS_OPTIONS)) {
+      if (getOption(lines, k) !== v) {
+        setOption(lines, k, v);
+        added++;
+      }
+    }
+    if (added) {
+      await fsp.writeFile(OPTIONS, lines.join("\n") + "\n", "utf-8");
+      log(`[기본 설정] options.txt 에 없던 ${added}개 항목을 넣음`);
+    }
+  } catch (err) {
+    log("[기본 설정] 실패(실행은 계속함): " + (err?.message || err));
+  }
 }
 
 // 너굴마을 전용 인게임 테마 (나무 프레임 + 크림 패널 + 초록 포인트, 픽셀 느낌)
