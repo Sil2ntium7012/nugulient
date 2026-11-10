@@ -1,22 +1,18 @@
 # -*- coding: utf-8 -*-
 # 너굴라이언트 설치 도우미 그림 생성 (너굴마을 게임 화면 구성 - 나무 프레임 · 크림 패널 · 픽셀)
 #   -> bg.bmp    : 창 배경 960x600
-#   -> dial.bmp  : 시계 문자판 1120x1120 (= 280 x 4배). 바늘은 설치 창이 직접 그림
-#   -> trig.bin  : 1도 단위 sin/cos 표
 #   -> icon.ico  : 설치 도우미 아이콘 (너굴마을 로고)
 #
 # ⚠️ 라벨(상태 문구 · 버전 · 창 버튼)과 시계 상자 자리는 완전한 단색(BG)이어야 함.
 #    BG 는 bootstrap.nsi 의 C_BG 와 반드시 같아야 함.
-import math
 import os
 import random
-import struct
 
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGO = os.path.join(HERE, "neogul-logo.png")
-FONT_TITLE = os.path.join(HERE, "Galmuri14.ttf")
+FONT_TITLE = os.path.join(HERE, "Galmuri11-Bold.ttf")
 FONT_SMALL = os.path.join(HERE, "Galmuri11-Bold.ttf")
 
 W, H = 960, 600
@@ -34,17 +30,15 @@ GREEN_D = (78, 138, 53)
 GREEN_L = (148, 204, 104)
 APPLE = (214, 58, 52)
 
-CLOCK_CX, CLOCK_CY = 480, 250
-CLOCK_BOX = 280
-S = 4
-BIG = CLOCK_BOX * S
+# 진행 바 채움 영역 (bootstrap.nsi 의 BAR_* 와 반드시 같아야 함)
+BAR_X, BAR_Y, BAR_W, BAR_H = 284, 388, 392, 12
 
 FRAME = 18
 
 # 라벨 자리 (bootstrap.nsi 의 컨트롤 위치 + 여유)
 EXCLUDE = [
-    (236, 420, 488, 32),   # 상태 문구
-    (396, 524, 168, 24),   # 버전
+    (236, 342, 488, 32),   # 상태 문구
+    (396, 466, 168, 24),   # 버전
     (848, 22, 48, 36),     # 최소화
     (890, 22, 48, 36),     # 닫기
 ]
@@ -131,7 +125,7 @@ def pixel_text(text, font_path, size, cx, cy, fill, shadow=None):
     img.paste(Image.new("RGB", img.size, fill), (0, 0), m)
 
 
-pixel_text("너굴라이언트", FONT_TITLE, 28, (SX0 + SX1) / 2, (SY0 + SY1) / 2, TEXT, shadow=(222, 205, 170))
+pixel_text("너굴라이언트", FONT_TITLE, 22, (SX0 + SX1) / 2, (SY0 + SY1) / 2, TEXT, shadow=(222, 205, 170))
 
 # ── 아래 잔디 ────────────────────────────────────────────────────────────────
 GY = H - FRAME - 22
@@ -171,81 +165,30 @@ for (ax, ay) in [(TX - 30, 392), (TX + 18, 370), (TX + 40, 412), (TX - 8, 414), 
     px_rect(ax + 2, ay + 2, ax + 4, ay + 4, (255, 150, 140))
     px_rect(ax + 3, ay - 2, ax + 5, ay, WOOD_D)
 
-# ── 왼쪽 너구리 (너굴마을 로고) ───────────────────────────────────────────────
+# ── 가운데 너굴마을 로고 ─────────────────────────────────────────────────────
 logo = Image.open(LOGO).convert("RGBA")
-LS = 208
-lg = logo.resize((LS, LS), Image.NEAREST)
-LX, LY = 34, GY + 14 - LS
-# 크림 바탕에 바로 합성 (라벨/시계 자리와 겹치지 않는 위치)
-img.paste(lg, (LX, LY), lg)
+LS = 256
+img.paste(logo, ((W - LS) // 2, 76), logo)
+
+# ── 진행 바 나무 테두리 (안쪽 채움은 설치 창이 초록으로 늘림) ───────────────────
+fx0, fy0, fx1, fy1 = BAR_X - 4, BAR_Y - 4, BAR_X + BAR_W + 4, BAR_Y + BAR_H + 4
+px_rect(fx0 - 3, fy0 - 3, fx1 + 3, fy1 + 3, WOOD_D)
+px_rect(fx0, fy0, fx1, fy1, WOOD)
+px_rect(fx0, fy0, fx1, fy0 + 1, WOOD_L)
+px_rect(BAR_X, BAR_Y, BAR_X + BAR_W, BAR_Y + BAR_H, (214, 199, 168))   # 빈 칸
+px_rect(BAR_X, BAR_Y, BAR_X + BAR_W, BAR_Y + 2, (196, 180, 148))
 
 # ── 아래쪽 작은 글씨 ─────────────────────────────────────────────────────────
-pixel_text("너굴마을 전용 런처 · mcng.kr", FONT_SMALL, 13, W / 2, 486, WOOD)
+pixel_text("너굴마을 전용 런처 · mcng.kr", FONT_SMALL, 11, W / 2, 434, WOOD)
 
 # 안전장치: 라벨 자리와 시계 상자는 완전한 단색
 for (ex, ey, ew, eh) in EXCLUDE:
     d.rectangle([ex, ey, ex + ew - 1, ey + eh - 1], fill=BG)
-d.rectangle([CLOCK_CX - CLOCK_BOX // 2, CLOCK_CY - CLOCK_BOX // 2,
-             CLOCK_CX + CLOCK_BOX // 2 - 1, CLOCK_CY + CLOCK_BOX // 2 - 1], fill=BG)
 
 img.save(os.path.join(HERE, "bg.bmp"), "BMP")
 img.save(os.path.join(HERE, "bg_preview.png"))
 
-# ── 문자판: 나무 벽시계 (반 크기 140 에 픽셀로 그리고 8배로 키움 → 화면에선 2px 도트) ──
-D = CLOCK_BOX // 2           # 140
-dial = Image.new("RGB", (D, D), BG)
-dd = ImageDraw.Draw(dial)
-c = D / 2
-FACE = (250, 243, 226)
-
-
-def ring(r_out, r_in, col):
-    for y in range(D):
-        for x in range(D):
-            dist = math.hypot(x + 0.5 - c, y + 0.5 - c)
-            if r_in <= dist < r_out:
-                dial.putpixel((x, y), col)
-
-
-ring(68, 0, WOOD_D)          # 바깥 테두리
-ring(66.5, 0, WOOD)          # 나무 테
-ring(63, 0, WOOD_D)
-ring(61.5, 0, FACE)          # 문자판
-# 나무 테의 밝은 결 (위쪽 왼쪽만 - 빛 방향)
-for y in range(D):
-    for x in range(D):
-        dist = math.hypot(x + 0.5 - c, y + 0.5 - c)
-        if 63.5 <= dist < 65.5 and (x + y) < D * 0.9 and (x * 7 + y * 3) % 5 == 0:
-            dial.putpixel((x, y), WOOD_L)
-# 분 눈금(점) - 시 눈금 자리는 빼고
-for i in range(60):
-    if i % 5 == 0:
-        continue
-    a = math.radians(i * 6)
-    x = round(c + 56 * math.sin(a) - 0.5)
-    y = round(c - 56 * math.cos(a) - 0.5)
-    dial.putpixel((x, y), (205, 186, 150))
-# 시 눈금 (2x2 ~ 3x3 도트 사각형), 12시는 초록 · 3/6/9는 진하게
-for h12 in range(12):
-    a = math.radians(h12 * 30)
-    x = c + 53 * math.sin(a)
-    y = c - 53 * math.cos(a)
-    big_tick = h12 % 3 == 0
-    sz = 3 if big_tick else 2
-    col = GREEN if h12 == 0 else (WOOD_D if big_tick else WOOD)
-    x0, y0 = int(round(x - sz / 2)), int(round(y - sz / 2))
-    dd.rectangle([x0, y0, x0 + sz - 1, y0 + sz - 1], fill=col)
-dial_big = dial.resize((BIG, BIG), Image.NEAREST)
-dial_big.save(os.path.join(HERE, "dial.bmp"), "BMP")
-dial.resize((CLOCK_BOX, CLOCK_BOX), Image.NEAREST).save(os.path.join(HERE, "dial_preview.png"))
-
-# ── sin/cos 표 ───────────────────────────────────────────────────────────────
-with open(os.path.join(HERE, "trig.bin"), "wb") as f:
-    for deg in range(360):
-        a = math.radians(deg)
-        f.write(struct.pack("<ii", int(round(math.sin(a) * 10000)), int(round(math.cos(a) * 10000))))
-
 # ── 아이콘 (너굴마을 로고) ────────────────────────────────────────────────────
 logo.save(os.path.join(HERE, "icon.ico"), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
-print("bg.bmp", img.size, "| dial.bmp", dial_big.size, "| trig.bin | icon.ico")
+print("bg.bmp", img.size, "| icon.ico")

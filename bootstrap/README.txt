@@ -12,19 +12,19 @@ Windows SmartScreen("Windows의 PC 보호") 평판은 "파일 내용(해시)" �
 
 이 안에는 버전 정보가 하나도 없고 주소도 "latest" 뿐이라,
 너굴라이언트를 아무리 새로 배포해도 이 파일은 그대로 두면 돼요.
-  sha256 d7256d9c9eb624ed78e90ec725c8630ace2dba80411f2756d197cae1ab9ae5f0
+  sha256 ddfa0f189696a716dc2da9c2cb25d058ede05c3303dc49e225f18956cec1ce70
 
 하는 일 (Nova Client 부트스트랩과 같은 동작, 화면만 너굴마을 구성)
 -------
 1) GitHub 최신 릴리스의 latest.yml 을 받아 크기 · 버전을 알아냄
-2) 최신 Nugulient-Setup.exe 를 받으면서 나무 벽시계 아래에 진행률 표시
+2) 최신 Nugulient-Setup.exe 를 받으면서 나무 테두리 초록 진행 바 + "42% · 30 / 72 MB" 표시
 3) 받은 설치 파일을 조용히(/S) 실행 → 윈도우 설치 마법사 없이 끝남
 4) 설치가 끝나면 너굴라이언트를 바로 실행
 프로그램이 받은 파일에는 인터넷 표식이 안 붙어서, 진짜 설치 파일을 실행할 땐
 경고가 안 떠요. 브라우저로 직접 받는 건 이 파일 하나뿐이라 평판도 여기에만 쌓여요.
 
-화면: 960x600, 나무 프레임 + 크림 패널 + "너굴라이언트" 나무 간판, 픽셀 나무 벽시계(실제 시각),
-      왼쪽 너굴마을 로고, 오른쪽 사과나무, 아래 잔디. 창은 끌어서 옮길 수 있고 최소화/닫기(확인) 있음.
+화면: 960x600, 나무 프레임 + 크림 패널 + "너굴라이언트" 나무 간판(Galmuri11 Bold),
+      가운데 너굴마을 로고, 진행 바, 오른쪽 사과나무, 아래 잔디. 창은 끌어서 옮길 수 있고 최소화/닫기(확인) 있음.
 
 필요한 것
 ---------
@@ -36,5 +36,5 @@ Nugulient-Setup.exe 와 latest.yml 이 들어 있어야 해요.
 다시 만들어야만 하는 경우
 ------------------------
 - GitHub 저장소 주소가 바뀔 때 / 릴리스 에셋 이름이 바뀔 때 → bootstrap.nsi 의 SETUP_URL 등 고치기
-빌드: Galmuri 폰트(npm 패키지 galmuri 의 dist/Galmuri14.ttf, Galmuri11-Bold.ttf)를 이 폴더에 두고
+빌드: Galmuri 폰트(npm 패키지 galmuri 의 dist/Galmuri11-Bold.ttf)를 이 폴더에 두고
       python3 makebg.py  →  makensis bootstrap.nsi

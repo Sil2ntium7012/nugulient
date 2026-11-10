@@ -12,23 +12,12 @@
 ;   배포해도 이 exe는 다시 만들 필요가 없고, 해시가 영원히 같다 -> 평판이 계속
 ;   누적된다. 절대 다시 컴파일하지 말 것.
 ;
-; 24-170차 (지금 모습):
-;   · "다운로드 중일 때 그거에 따라 시계가 움직이는 게 아니라 현실 시간으로"
-;     -> 시계가 진짜 벽시계가 됐다. 시/분/초 조합은 43200가지라 예전처럼 바늘 그림을
-;        미리 구울 수 없어서(24-168차는 60장), 바늘을 GDI 로 직접 그린다.
-;        문자판(dial.bmp)만 4배 크기로 구워두고, 그 위에 4배로 바늘을 그린 뒤 280 으로
-;        줄여서 화면에 올린다(StretchBlt HALFTONE) - GDI 는 선을 부드럽게 못 그리는데
-;        크게 그렸다 줄이면 매끄럽게 나온다. 삼각함수는 trig.bin(1도 단위 표)로 대신한다.
-;   · "그 앱이 안움직여 화면에서 끌어도" -> 제목표시줄이 없는 창이라 끌 수가 없었다.
-;     마우스 왼쪽 버튼이 눌린 채로 창 위에 있으면 WM_NCLBUTTONDOWN(HTCAPTION)을 보내서
-;     윈도우 기본 "창 옮기기"에 넘긴다(OnUiTick).
-;   · "최소화 눌러도 에니메이션도 안나오고 꺼지고" -> 작업표시줄 단추가 안 생겨서
-;     최소화하면 되찾을 수가 없었다. WS_EX_APPWINDOW 는 "다음에 창을 보여줄 때" 반영되는
-;     값이라 이미 보이는 창에는 안 먹는다 -> 숨겼다 다시 보여서 확정시키고, 최소화도
-;     ShowWindow 대신 WM_SYSCOMMAND/SC_MINIMIZE 로 보내 윈도우가 직접 처리하게 한다.
-;   · "X 눌렀을 때 확인 메시지도 좀 주고" -> 닫기에 예/아니오 확인을 붙였다.
-;   · "우리 클라이언트 색처럼 초록색을 메인으로 하고 별도 좀 클라이언트 로고 별 써줘"
-;     -> 런처 기본 테마색(#5FE066 / 배경 #0C0E14), 별은 로고의 네 갈래 반짝이 모양.
+;
+; 너굴라이언트판 (2026-11-10):
+;   · 화면: 나무 프레임 + 크림 패널 + "너굴라이언트" 나무 간판 + 가운데 너굴마을 로고
+;     + 나무 테두리 초록 진행 바 + 사과나무 · 잔디 (bg.bmp, makebg.py 가 만듦)
+;   · 노바판의 벽시계는 뺐다. 진행 상황은 진행 바와 "42%  ·  30 / 72 MB" 글자로 보여준다.
+;   · 창 끌기 / 최소화 / 닫기 확인은 노바판 그대로.
 ;
 ; 흐름:
 ;   1) latest.yml 을 받아 설치 파일 크기를 알아낸다(진행률 계산용)
@@ -85,33 +74,12 @@ VIAddVersionKey "ProductVersion"  "1.0.0.0"
 !define C_X       0x8A5A3B   ; 창 버튼 글자 (나무색)
 !define C_VER     0x9C7F62   ; 버전 글씨
 
-; 시계 (makebg.py 의 CLOCK_* / BIG 과 반드시 일치)
-!define CLOCK_BOX 280        ; 화면에 올라가는 한 변
-!define CLOCK_X   340        ; 창 안에서의 좌상단 (CLOCK_CX - CLOCK_BOX/2)
-!define CLOCK_Y   110        ; (CLOCK_CY - CLOCK_BOX/2)
-!define BIG       1120       ; 그리는 캔버스 한 변 (= CLOCK_BOX * 4)
-!define BIGC      560        ; 그 한가운데
-
-; 바늘 치수 - 전부 4배 좌표 기준. W_* 는 "반쪽" 두께
-!define H_LEN 224
-!define H_TAIL 48
-!define H_WB 13
-!define H_WT 7
-!define M_LEN 352
-!define M_TAIL 64
-!define M_WB 11
-!define M_WT 4
-!define S_LEN 416
-!define S_TAIL 92
-!define S_WB 4
-!define S_WT 3
-
-; GDI 색은 COLORREF = 0x00BBGGRR (RGB 를 뒤집어 적는다)
-!define CR_HOUR 0x243A5E     ; #5E3A24  진한 나무색
-!define CR_MIN  0x4FAE6F     ; #6FAE4F  너굴 초록
-!define CR_SEC  0x3A70E0     ; #E0703A  주황
-!define CR_HUBO 0x243A5E     ; 가운데 축 바깥 (나무색)
-!define CR_HUBI 0x5AA6F2     ; 가운데 축 안쪽 (#F2A65A)
+; 진행 바 (makebg.py 의 BAR_* 와 반드시 일치) - 채움 영역 좌표
+!define BAR_X 284
+!define BAR_Y 388
+!define BAR_W 392
+!define BAR_H 12
+!define C_BAR 0x6FAE4F       ; 너굴 초록
 
 !define SS_CENTER_  0x00000001
 !define SS_RIGHT_   0x00000002
@@ -147,41 +115,11 @@ Var Ticks
 Var LastSize
 Var Diag
 
-; ── 시계(GDI) ---------------------------------------------------------------
-Var ImgClock      ; 시계가 올라가는 그림 컨트롤
-Var ScreenDC
-Var DcBig         ; 4배 캔버스 (문자판 복사 + 바늘 그리기)
-Var DcSmall       ; 280 짜리 결과물
-Var DcDial        ; 구워둔 문자판 원본
-Var BmpBig
-Var BmpSmall
-Var BmpDial
-Var OldBig
-Var OldSmall
-Var OldDial
-Var OldPen
-Var PenNull
-Var BrHour
-Var BrMin
-Var BrSec
-Var BrHubO
-Var BrHubI
-Var Pts           ; POINT[4]
-Var Trig          ; 1도 단위 (sin, cos) 표
-Var ClockKey      ; 같은 초면 다시 안 그린다
-Var ClockReady
+Var BarFill       ; 진행 바 초록 채움
 Var Dragging
 
-; 바늘 하나를 그릴 때 쓰는 값들 (스택으로 6개를 넘기면 읽기 힘들어서 변수로 둔다)
-Var HD_Deg
-Var HD_Len
-Var HD_Tail
-Var HD_WB
-Var HD_WT
-Var HD_Br
-
 ; 24-130차: 다운로드가 왜 안 되는지 눈으로 확인할 수 있게 로그를 남긴다.
-; %TEMP%\nova-bootstrap.log 에 단계별 결과와 오류 코드를 적는다.
+; %TEMP%\nugulient-bootstrap.log 에 단계별 결과와 오류 코드를 적는다.
 Function Log
   Exch $R0
   Push $R1
@@ -266,8 +204,6 @@ Function PageMain
 
   InitPluginsDir
   File "/oname=$PLUGINSDIR\bg.bmp" "bg.bmp"
-  File "/oname=$PLUGINSDIR\dial.bmp" "dial.bmp"
-  File "/oname=$PLUGINSDIR\trig.bin" "trig.bin"
 
   nsDialogs::Create 1018
   Pop $Dlg
@@ -303,14 +239,14 @@ Function PageMain
   ${NSD_OnClick} $LblX OnCloseClick
 
   ; 이름 아래: 받으려는 버전 - latest.yml 을 읽은 뒤 ReadTotalSize 가 채운다
-  nsDialogs::CreateControl STATIC ${DEFAULT_STYLES}|${SS_CENTER_} 0 400 528 160 16 ""
+  nsDialogs::CreateControl STATIC ${DEFAULT_STYLES}|${SS_CENTER_} 0 400 470 160 16 ""
   Pop $LblVer
   SetCtlColors $LblVer ${C_VER} ${C_BG}
   CreateFont $4 "Malgun Gothic" 9 700
   SendMessage $LblVer ${WM_SETFONT} $4 1
 
   ; 시계 아래: 상태 문구 (가운데 정렬)
-  nsDialogs::CreateControl STATIC ${DEFAULT_STYLES}|${SS_CENTER_} 0 240 424 480 24 "설치를 준비하고 있어요"
+  nsDialogs::CreateControl STATIC ${DEFAULT_STYLES}|${SS_CENTER_} 0 240 346 480 24 "설치를 준비하고 있어요"
   Pop $LblStatus
   SetCtlColors $LblStatus ${C_TEXT} ${C_BG}
   StrCpy $StatusBase "설치를 준비하고 있어요"
@@ -318,10 +254,10 @@ Function PageMain
   CreateFont $2 "Malgun Gothic" 12 700
   SendMessage $LblStatus ${WM_SETFONT} $2 1
 
-  ; ── 시계 --------------------------------------------------------------------
-  ${NSD_CreateBitmap} ${CLOCK_X} ${CLOCK_Y} ${CLOCK_BOX} ${CLOCK_BOX} ""
-  Pop $ImgClock
-  Call InitClock
+  ; ── 진행 바 (나무 테두리는 bg.bmp 에 그려져 있고, 초록 채움만 여기서 늘린다) ──
+  nsDialogs::CreateControl STATIC ${DEFAULT_STYLES} 0 ${BAR_X} ${BAR_Y} 0 ${BAR_H} ""
+  Pop $BarFill
+  SetCtlColors $BarFill ${C_BAR} ${C_BAR}
 
   ; 배경 이미지를 맨 뒤로 (HWND_BOTTOM=1, NOSIZE|NOMOVE|NOACTIVATE=0x13)
   System::Call 'user32::SetWindowPos(p $ImgBg, p 1, i 0, i 0, i 0, i 0, i 0x13)'
@@ -329,256 +265,12 @@ Function PageMain
   StrCpy $Phase 0
   StrCpy $Dragging 0
   ${NSD_CreateTimer} OnTick 400
-  ; 시계 갱신 + 창 끌기 감지. 초침이 있어서 1초보다 촘촘해야 한다
+  ; 창 끌기 감지
   ${NSD_CreateTimer} OnUiTick 50
 
   nsDialogs::Show
   ${NSD_KillTimer} OnUiTick
-  Call FreeClock
   ${NSD_FreeImage} $ImgHandle
-FunctionEnd
-
-; ---------------------------------------------------------------------------
-; 시계 - 문자판은 구워둔 그림, 바늘은 여기서 GDI 로 직접 그린다
-; ---------------------------------------------------------------------------
-Function InitClock
-  StrCpy $ClockReady 0
-  StrCpy $ClockKey ""
-
-  System::Call 'user32::GetDC(p 0) p .s'
-  Pop $ScreenDC
-  System::Call 'gdi32::CreateCompatibleDC(p $ScreenDC) p .s'
-  Pop $DcBig
-  System::Call 'gdi32::CreateCompatibleDC(p $ScreenDC) p .s'
-  Pop $DcSmall
-  System::Call 'gdi32::CreateCompatibleDC(p $ScreenDC) p .s'
-  Pop $DcDial
-  System::Call 'gdi32::CreateCompatibleBitmap(p $ScreenDC, i ${BIG}, i ${BIG}) p .s'
-  Pop $BmpBig
-  System::Call 'gdi32::CreateCompatibleBitmap(p $ScreenDC, i ${CLOCK_BOX}, i ${CLOCK_BOX}) p .s'
-  Pop $BmpSmall
-  ; LR_LOADFROMFILE(0x10) | LR_CREATEDIBSECTION(0x2000)
-  System::Call 'user32::LoadImageW(p 0, t "$PLUGINSDIR\dial.bmp", i 0, i 0, i 0, i 0x2010) p .s'
-  Pop $BmpDial
-
-  ${If} $BmpBig == 0
-  ${OrIf} $BmpSmall == 0
-  ${OrIf} $BmpDial == 0
-    ${LOG} "시계 준비 실패 (big=$BmpBig small=$BmpSmall dial=$BmpDial)"
-    Return
-  ${EndIf}
-
-  System::Call 'gdi32::SelectObject(p $DcBig, p $BmpBig) p .s'
-  Pop $OldBig
-  System::Call 'gdi32::SelectObject(p $DcDial, p $BmpDial) p .s'
-  Pop $OldDial
-  ; 4배 캔버스를 280 으로 줄일 때 주변 화소를 평균내게 한다(HALFTONE=4).
-  ; 이게 바로 GDI 가 못 하는 "부드러운 선"을 대신해 준다
-  System::Call 'gdi32::SetStretchBltMode(p $DcSmall, i 4)'
-  System::Call 'gdi32::SetBrushOrgEx(p $DcSmall, i 0, i 0, p 0)'
-
-  ; 다각형 테두리는 안 그린다(PS_NULL=5) - 면만 칠한다
-  System::Call 'gdi32::CreatePen(i 5, i 0, i 0) p .s'
-  Pop $PenNull
-  System::Call 'gdi32::SelectObject(p $DcBig, p $PenNull) p .s'
-  Pop $OldPen
-  System::Call 'gdi32::CreateSolidBrush(i ${CR_HOUR}) p .s'
-  Pop $BrHour
-  System::Call 'gdi32::CreateSolidBrush(i ${CR_MIN}) p .s'
-  Pop $BrMin
-  System::Call 'gdi32::CreateSolidBrush(i ${CR_SEC}) p .s'
-  Pop $BrSec
-  System::Call 'gdi32::CreateSolidBrush(i ${CR_HUBO}) p .s'
-  Pop $BrHubO
-  System::Call 'gdi32::CreateSolidBrush(i ${CR_HUBI}) p .s'
-  Pop $BrHubI
-
-  System::Alloc 32
-  Pop $Pts            ; POINT[4]
-  System::Alloc 2880
-  Pop $Trig           ; 360 x (int sin, int cos), 10000배
-
-  ; NSIS 에는 삼각함수가 없다. makebg.py 가 만들어 둔 표를 통째로 읽어 온다
-  ; GENERIC_READ(0x80000000), FILE_SHARE_READ(1), OPEN_EXISTING(3)
-  System::Call 'kernel32::CreateFileW(t "$PLUGINSDIR\trig.bin", i 0x80000000, i 1, i 0, i 3, i 0, i 0) p .s'
-  Pop $0
-  ${If} $0 == -1
-    ${LOG} "trig.bin 열기 실패"
-    Return
-  ${EndIf}
-  System::Call 'kernel32::ReadFile(p $0, p $Trig, i 2880, *i .r1, i 0)'
-  System::Call 'kernel32::CloseHandle(p $0)'
-  ${If} $1 != 2880
-    ${LOG} "trig.bin 읽기 실패 ($1 바이트)"
-    Return
-  ${EndIf}
-
-  StrCpy $ClockReady 1
-  Call DrawClock
-  ; 그림 컨트롤에 우리 비트맵을 물려둔다. 이후에는 비트맵 내용만 고쳐서 다시 그린다
-  SendMessage $ImgClock ${STM_SETIMAGE} 0 $BmpSmall
-FunctionEnd
-
-Function FreeClock
-  ${If} $ClockReady == 0
-  ${AndIf} $BmpBig == 0
-    Return
-  ${EndIf}
-  ${If} $OldBig != 0
-    System::Call 'gdi32::SelectObject(p $DcBig, p $OldBig) p .s'
-    Pop $0
-  ${EndIf}
-  ${If} $OldDial != 0
-    System::Call 'gdi32::SelectObject(p $DcDial, p $OldDial) p .s'
-    Pop $0
-  ${EndIf}
-  System::Call 'gdi32::DeleteObject(p $BmpBig)'
-  System::Call 'gdi32::DeleteObject(p $BmpDial)'
-  System::Call 'gdi32::DeleteObject(p $PenNull)'
-  System::Call 'gdi32::DeleteObject(p $BrHour)'
-  System::Call 'gdi32::DeleteObject(p $BrMin)'
-  System::Call 'gdi32::DeleteObject(p $BrSec)'
-  System::Call 'gdi32::DeleteObject(p $BrHubO)'
-  System::Call 'gdi32::DeleteObject(p $BrHubI)'
-  System::Call 'gdi32::DeleteDC(p $DcBig)'
-  System::Call 'gdi32::DeleteDC(p $DcSmall)'
-  System::Call 'gdi32::DeleteDC(p $DcDial)'
-  System::Call 'user32::ReleaseDC(p 0, p $ScreenDC)'
-  ; $BmpSmall 은 그림 컨트롤이 아직 들고 있으므로 마지막에 지운다
-  System::Call 'gdi32::DeleteObject(p $BmpSmall)'
-  System::Free $Pts
-  System::Free $Trig
-  StrCpy $ClockReady 0
-FunctionEnd
-
-; 바늘 하나. HD_* 에 값을 넣고 부른다. $R0~$R9 와 $9 만 쓴다
-; (DrawClock 이 $5/$6/$7 에 시/분/초를 들고 있어서 건드리면 안 된다)
-Function DrawHand
-  IntOp $R2 $HD_Deg % 360
-  ${If} $R2 < 0
-    IntOp $R2 $R2 + 360
-  ${EndIf}
-  IntOp $R2 $R2 * 8
-  IntOp $9 $Trig + $R2
-  System::Call "*$9(i .R0, i .R1)"      ; R0 = sin*10000, R1 = cos*10000
-
-  ; 바깥 방향 u = (sin, -cos), 수직 방향 perp = (-cos, -sin)
-  IntOp $R2 $R0 * $HD_Len
-  IntOp $R2 $R2 / 10000
-  IntOp $R2 $R2 + ${BIGC}               ; 끝점 x
-  IntOp $R3 $R1 * $HD_Len
-  IntOp $R3 $R3 / 10000
-  IntOp $R3 ${BIGC} - $R3               ; 끝점 y
-  IntOp $R4 $R0 * $HD_Tail
-  IntOp $R4 $R4 / 10000
-  IntOp $R4 ${BIGC} - $R4               ; 꼬리 x
-  IntOp $R5 $R1 * $HD_Tail
-  IntOp $R5 $R5 / 10000
-  IntOp $R5 $R5 + ${BIGC}               ; 꼬리 y
-
-  ; 끝쪽 두 점
-  IntOp $R6 $R1 * $HD_WT
-  IntOp $R6 $R6 / 10000
-  IntOp $R7 $R0 * $HD_WT
-  IntOp $R7 $R7 / 10000
-  IntOp $R8 $R2 - $R6
-  IntOp $R9 $R3 - $R7
-  System::Call "*$Pts(i R8, i R9)"
-  IntOp $R8 $R2 + $R6
-  IntOp $R9 $R3 + $R7
-  IntOp $9 $Pts + 8
-  System::Call "*$9(i R8, i R9)"
-
-  ; 꼬리쪽 두 점
-  IntOp $R6 $R1 * $HD_WB
-  IntOp $R6 $R6 / 10000
-  IntOp $R7 $R0 * $HD_WB
-  IntOp $R7 $R7 / 10000
-  IntOp $R8 $R4 + $R6
-  IntOp $R9 $R5 + $R7
-  IntOp $9 $Pts + 16
-  System::Call "*$9(i R8, i R9)"
-  IntOp $R8 $R4 - $R6
-  IntOp $R9 $R5 - $R7
-  IntOp $9 $Pts + 24
-  System::Call "*$9(i R8, i R9)"
-
-  System::Call 'gdi32::SelectObject(p $DcBig, p $HD_Br) p .s'
-  Pop $9
-  System::Call 'gdi32::Polygon(p $DcBig, p $Pts, i 4)'
-FunctionEnd
-
-; 지금 시각을 그린다. 같은 초면 아무것도 안 한다
-Function DrawClock
-  ${If} $ClockReady == 0
-    Return
-  ${EndIf}
-
-  System::Call '*(i, i, i, i) p .r4'
-  System::Call 'kernel32::GetLocalTime(p $4)'
-  System::Call '*$4(&i2, &i2, &i2, &i2, &i2 .r5, &i2 .r6, &i2 .r7, &i2)'
-  System::Free $4
-
-  StrCpy $8 "$5:$6:$7"
-  ${If} $8 == $ClockKey
-    Return
-  ${EndIf}
-  StrCpy $ClockKey $8
-
-  ; 문자판을 통째로 복사해서 지난 초의 바늘을 지운다 (SRCCOPY=0x00CC0020)
-  System::Call 'gdi32::BitBlt(p $DcBig, i 0, i 0, i ${BIG}, i ${BIG}, p $DcDial, i 0, i 0, i 0x00CC0020)'
-
-  ; 시침: 시*30도 + 분*0.5도
-  IntOp $HD_Deg $5 % 12
-  IntOp $HD_Deg $HD_Deg * 30
-  IntOp $9 $6 / 2
-  IntOp $HD_Deg $HD_Deg + $9
-  StrCpy $HD_Len ${H_LEN}
-  StrCpy $HD_Tail ${H_TAIL}
-  StrCpy $HD_WB ${H_WB}
-  StrCpy $HD_WT ${H_WT}
-  StrCpy $HD_Br $BrHour
-  Call DrawHand
-
-  ; 분침: 분*6도 + 초*0.1도
-  IntOp $HD_Deg $6 * 6
-  IntOp $9 $7 / 10
-  IntOp $HD_Deg $HD_Deg + $9
-  StrCpy $HD_Len ${M_LEN}
-  StrCpy $HD_Tail ${M_TAIL}
-  StrCpy $HD_WB ${M_WB}
-  StrCpy $HD_WT ${M_WT}
-  StrCpy $HD_Br $BrMin
-  Call DrawHand
-
-  ; 초침: 초*6도
-  IntOp $HD_Deg $7 * 6
-  StrCpy $HD_Len ${S_LEN}
-  StrCpy $HD_Tail ${S_TAIL}
-  StrCpy $HD_WB ${S_WB}
-  StrCpy $HD_WT ${S_WT}
-  StrCpy $HD_Br $BrSec
-  Call DrawHand
-
-  ; 가운데 축
-  System::Call 'gdi32::SelectObject(p $DcBig, p $BrHubO) p .s'
-  Pop $9
-  System::Call 'gdi32::Ellipse(p $DcBig, i 538, i 538, i 582, i 582)'
-  System::Call 'gdi32::SelectObject(p $DcBig, p $BrHubI) p .s'
-  Pop $9
-  System::Call 'gdi32::Ellipse(p $DcBig, i 546, i 546, i 574, i 574)'
-
-  ; 4배 캔버스를 280 으로 줄여서 그림 컨트롤이 들고 있는 비트맵에 옮긴다.
-  ; ⚠️ 같은 비트맵을 DC 에 물린 채로 두면 그림 컨트롤이 그걸 못 그린다(GDI 는 한 번에
-  ;    한 DC 에만 물릴 수 있다). 그래서 옮긴 직후 바로 풀어준다
-  System::Call 'gdi32::SelectObject(p $DcSmall, p $BmpSmall) p .s'
-  Pop $OldSmall
-  System::Call 'gdi32::StretchBlt(p $DcSmall, i 0, i 0, i ${CLOCK_BOX}, i ${CLOCK_BOX}, p $DcBig, i 0, i 0, i ${BIG}, i ${BIG}, i 0x00CC0020)'
-  System::Call 'gdi32::SelectObject(p $DcSmall, p $OldSmall) p .s'
-  Pop $9
-  System::Call 'gdi32::GdiFlush()'
-  System::Call 'user32::InvalidateRect(p $ImgClock, p 0, i 0)'
-  System::Call 'user32::UpdateWindow(p $ImgClock)'
 FunctionEnd
 
 ; 24-129차: 타이머/클릭 콜백 안에서 부른 Quit 은 즉시 먹지 않는다. nsDialogs::Show 가
@@ -634,8 +326,6 @@ Function OnUiTick
   ${If} $Dragging == 1
     Return
   ${EndIf}
-
-  Call DrawClock
 
   System::Call 'user32::GetAsyncKeyState(i 1) i .r0'
   IntOp $0 $0 & 0x8000
@@ -965,7 +655,20 @@ Function PollDownload
       Push "연결하는 중..."
       Call SetStatusTail
     ${Else}
-      Push "$5 / $6 MB"
+      ; 진행 바: (받은 KB * 바 폭) / 전체 KB  (32비트 넘침 방지로 KB 단위)
+      IntOp $8 $R4 / 1024
+      IntOp $9 $TotalBytes / 1024
+      IntOp $8 $8 * ${BAR_W}
+      IntOp $8 $8 / $9
+      ${If} $8 > ${BAR_W}
+        StrCpy $8 ${BAR_W}
+      ${EndIf}
+      Call SetBarWidth
+      IntOp $9 $R4 / 1024
+      IntOp $9 $9 * 100
+      IntOp $R3 $TotalBytes / 1024
+      IntOp $9 $9 / $R3
+      Push "$9%  ·  $5 / $6 MB"
       Call SetStatusTail
     ${EndIf}
   ${Else}
@@ -1045,6 +748,12 @@ Function LaunchApp
   ${LOG} "자동 실행 실패 - 실행 파일을 찾지 못함"
 FunctionEnd
 
+; $8 = 채울 폭(px)
+Function SetBarWidth
+  System::Call 'user32::SetWindowPos(p $BarFill, p 0, i 0, i 0, i $8, i ${BAR_H}, i 0x16)'
+  System::Call 'user32::InvalidateRect(p $BarFill, p 0, i 1)'
+FunctionEnd
+
 Function FinishDownload
   StrCpy $0 0
   ${If} ${FileExists} "$SetupPath"
@@ -1059,6 +768,8 @@ Function FinishDownload
   ${EndIf}
 
   StrCpy $Phase 2
+  StrCpy $8 ${BAR_W}
+  Call SetBarWidth
   Push ""
   Call SetStatusTail
   ${Status} "설치하는 중이에요"
