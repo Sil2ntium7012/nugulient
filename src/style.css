@@ -599,3 +599,31 @@ input[type="range"] { width: 200px; accent-color: var(--accent); }
 .fr-bar { flex: 1; height: 6px; border-radius: 6px; background: var(--bg-3); overflow: hidden; }
 .fr-bar i { display: block; height: 100%; background: var(--accent); border-radius: 6px; }
 .fr-lv { width: 46px; text-align: right; font-weight: 800; color: var(--accent); }
+
+/* ── 추천 탭 · 망고's pick ── */
+.rec-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 12px; }
+.rec-head h2 { font-size: 17px; font-weight: 800; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
+.rec-head.picks { margin-top: 28px; }
+.pick-tag {
+  display: inline-flex; align-items: center; margin-left: 8px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; letter-spacing: .01em; white-space: nowrap;
+  color: #2b1606; background: linear-gradient(135deg, #ffd27a, #ffa94d);
+  box-shadow: 0 0 0 1px rgba(255,190,100,.35), 0 2px 8px rgba(255,170,80,.25);
+}
+.pick-tag.big { margin-left: 0; font-size: 12.5px; padding: 3px 10px; }
+.pick-group { margin-bottom: 20px; }
+.pick-group-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pick-group-head h3 { font-size: 14.5px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+.pick-group .result-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pick-group .ri { padding: 9px 12px; }
+.pick-group .ri-icon { width: 40px; height: 40px; border-radius: 9px; }
+.pick-group .ri-title { font-size: 13.5px; min-width: 0; }
+.ng-icon.logo { position: relative; background: var(--bg-3); overflow: visible; }
+.ng-logo { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+.ng-badge { position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; box-shadow: 0 0 0 3px var(--bg-2); }
+.ng-badge svg { width: 14px; height: 14px; stroke-width: 2.2; }
+img.ri-icon { object-fit: contain; background: var(--bg-3); }
+.pin-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 2px 2px; font-size: 13px; color: var(--text-1); }
+.pin-head b { font-weight: 800; display: flex; align-items: center; }
+.pin-head .pick-tag { margin: 0 6px 0 0; }
+.ri.pinned { border-color: color-mix(in srgb, var(--accent) 25%, var(--border-soft)); }

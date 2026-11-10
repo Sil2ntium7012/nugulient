@@ -161,7 +161,71 @@ const NEOGUL_RESOURCEPACK = {
   fileName: "neogul-resourcepack.zip",
 };
 
+
+// 망고's pick - 노바 클라이언트 "너굴마을" 프로필에 넣어 쓰던 모드 · 리소스팩 · 쉐이더 전부 (Modrinth)
+// id 는 Modrinth 프로젝트 id (메타가 없던 Mod Menu · Chat Heads 는 slug)
+// 너굴마을 전용 모드(ng-*), Simple Voice Chat, 노바 내장 모드는 위 NEOGUL_MODS 쪽에서 받아요.
+const MANGO_PICKS = {
+  mod: [
+    { id: "4I1XuqiY", title: "[EMF] Entity Model Features", icon: "https://cdn.modrinth.com/data/4I1XuqiY/6e5bbd0d06b1741bfdab6c0cfab6de8fdaf0064c_96.webp" },
+    { id: "BVzZfTc1", title: "[ETF] Entity Texture Features", icon: "https://cdn.modrinth.com/data/BVzZfTc1/af683d206d50b05258d865b0d6e4aa2f2cee12f2_96.webp" },
+    { id: "kzwxhsjp", title: "Accurate Block Placement Reborn", icon: "https://cdn.modrinth.com/data/kzwxhsjp/d625b497fc032d684c9c9d1826ee04fbef9f37d9_96.webp" },
+    { id: "lhGA9TYQ", title: "Architectury API", icon: "https://cdn.modrinth.com/data/lhGA9TYQ/05fe3a61c28faaccaec3533b92e1b321edde7bf6_96.webp" },
+    { id: "OfKzpbRU", title: "BaguetteLib", icon: "https://cdn.modrinth.com/data/OfKzpbRU/d007c3afd229b8e796f41174ceacd7c8f0f436cc_96.webp" },
+    { id: "Q2OqKxDG", title: "Better Advancements", icon: "https://cdn.modrinth.com/data/Q2OqKxDG/b1519a191e62135647f66394d526d179ab5b598d.png" },
+    { id: "ONZm0H7Y", title: "Better Block Entities", icon: "https://cdn.modrinth.com/data/ONZm0H7Y/5ff4f3ad6948a0bf185f641c407878932bae3dcf.png" },
+    { id: "chat-heads", title: "Chat Heads", icon: null },
+    { id: "9s6osm5g", title: "Cloth Config API", icon: "https://cdn.modrinth.com/data/9s6osm5g/ed8a2316cbb6f4fc5f510e8e13a59a85cbbbff4d_96.webp" },
+    { id: "VSNURh3q", title: "Concurrent Chunk Management Engine (Fabric)", icon: "https://cdn.modrinth.com/data/VSNURh3q/3c2ce471054466712a44c8758a03e03bb868f93b_96.webp" },
+    { id: "lGffrQ3O", title: "Configurable", icon: "https://cdn.modrinth.com/data/lGffrQ3O/ba01416a5f946b64040cc6a48e3456e351e73762.png" },
+    { id: "1IjD5062", title: "Continuity", icon: "https://cdn.modrinth.com/data/1IjD5062/icon.png" },
+    { id: "xv94TkTM", title: "Controlling", icon: "https://cdn.modrinth.com/data/xv94TkTM/bdb6feb3d04ca37da4ed5aa73fef062a39d8b3e5_96.webp" },
+    { id: "NNAgCjsB", title: "Entity Culling", icon: "https://cdn.modrinth.com/data/NNAgCjsB/7873452d6cede4daed12da3d7d8c193ab88b4fd6_96.webp" },
+    { id: "OSQ8mw2r", title: "Explosive Enhancement", icon: "https://cdn.modrinth.com/data/OSQ8mw2r/88f44e9ed022061b1eb865996b2f98fe01937de6.png" },
+    { id: "Ha28R6CL", title: "Fabric Language Kotlin", icon: "https://cdn.modrinth.com/data/Ha28R6CL/72c3d74aeb665e45aea93a945a01474cbce3b7da_96.webp" },
+    { id: "uXXizFIs", title: "FerriteCore", icon: "https://cdn.modrinth.com/data/uXXizFIs/222a126f26f8f9ae1eb339f3b767677f18bff31f_96.webp" },
+    { id: "ohNO6lps", title: "Forge Config API Port", icon: "https://cdn.modrinth.com/data/ohNO6lps/cb3b942cc18a66a0f35f802e004713f134e46cc2_96.webp" },
+    { id: "8BmcQJ2H", title: "Geckolib", icon: "https://cdn.modrinth.com/data/8BmcQJ2H/012d1aadbc754995de66e8c149a56aa10b63fe05_96.webp" },
+    { id: "5faXoLqX", title: "Iceberg", icon: "https://cdn.modrinth.com/data/5faXoLqX/88c9b9918841470dad995049244ef7a3cb2f34f5_96.webp" },
+    { id: "5ZwdcRci", title: "ImmediatelyFast", icon: "https://cdn.modrinth.com/data/5ZwdcRci/e57b6b451425692ac17ad322d5e14bea686a383a_96.webp" },
+    { id: "YL57xq9U", title: "Iris Shaders", icon: "https://cdn.modrinth.com/data/YL57xq9U/18d0e7f076d3d6ed5bedd472b853909aac5da202_96.webp" },
+    { id: "cVNW5lr6", title: "Item Highlighter", icon: "https://cdn.modrinth.com/data/cVNW5lr6/5e15f8c53ea36ca5391cdd9bbdea33261fa4c18d_96.webp" },
+    { id: "p8RJPJIC", title: "Ixeris", icon: "https://cdn.modrinth.com/data/p8RJPJIC/4ca312df105cb246a91f5b782bfd863930d8888f_96.webp" },
+    { id: "gvQqBUqZ", title: "Lithium", icon: "https://cdn.modrinth.com/data/gvQqBUqZ/bcc8686c13af0143adf4285d741256af824f70b7_96.webp" },
+    { id: "gPCdW0Wr", title: "Make Bubbles Pop", icon: "https://cdn.modrinth.com/data/gPCdW0Wr/4616c50230e3e716f02127a0e74f250470a07e85.png" },
+    { id: "modmenu", title: "Mod Menu", icon: null },
+    { id: "51shyZVL", title: "More Culling", icon: "https://cdn.modrinth.com/data/51shyZVL/c51b07193b56e952269ef50101d12aecba2b4747_96.webp" },
+    { id: "1s5x833P", title: "Neruina - Ticking Entity Fixer", icon: "https://cdn.modrinth.com/data/1s5x833P/b7e3cf809f07d3cad88a60834c3e4e7248021744_96.webp" },
+    { id: "MPCX6s5C", title: "Not Enough Animations", icon: "https://cdn.modrinth.com/data/MPCX6s5C/b97fd5f7a893165052408b747286d6eb38d57abb_96.webp" },
+    { id: "nrikgvxm", title: "Particle Rain", icon: "https://cdn.modrinth.com/data/nrikgvxm/e637304d1bec07c39e833d810aa4bdbb9703bf95_96.webp" },
+    { id: "pYFUU6cq", title: "Particular ✨ Reforged", icon: "https://cdn.modrinth.com/data/pYFUU6cq/152536579fe8e475149273b64cabdef764b3da9f_96.webp" },
+    { id: "1OE8wbN0", title: "Prism", icon: "https://cdn.modrinth.com/data/1OE8wbN0/2fecc17cdc6036b648f0defc7c9a85a6733be435_96.webp" },
+    { id: "Bh37bMuy", title: "Reese's Sodium Options", icon: "https://cdn.modrinth.com/data/Bh37bMuy/icon.png" },
+    { id: "yXAvIk0x", title: "Scribble", icon: "https://cdn.modrinth.com/data/yXAvIk0x/cf63f0295c57f6f2f14c51d8e1075de19e9f4f76.png" },
+    { id: "fuuu3xnx", title: "Searchables", icon: "https://cdn.modrinth.com/data/fuuu3xnx/206971d54b37b30a2e728b1c194f7f096963d05a_96.webp" },
+    { id: "AANobbMI", title: "Sodium", icon: "https://cdn.modrinth.com/data/AANobbMI/295862f4724dc3f78df3447ad6072b2dcd3ef0c9_96.webp" },
+    { id: "PtjYWJkn", title: "Sodium Extra", icon: "https://cdn.modrinth.com/data/PtjYWJkn/0df4fb22a11e1dcb5e83cb0aadd275b571aca7a9_96.webp" },
+    { id: "qyVF9oeo", title: "Sound Physics Remastered", icon: "https://cdn.modrinth.com/data/qyVF9oeo/798fbfae58ec95ad51f3e1d522b43227306c326c.png" },
+    { id: "eXts2L7r", title: "Text Placeholder API", icon: "https://cdn.modrinth.com/data/eXts2L7r/e9c9990896e6422bffc5f73d2c41b8f077348f83.png" },
+    { id: "dlNu0RQY", title: "Wakes", icon: "https://cdn.modrinth.com/data/dlNu0RQY/46be95a28f27da8a98e9721b6695703fcec2d7d8_96.webp" },
+    { id: "1eAoo2KR", title: "YetAnotherConfigLib (YACL)", icon: "https://cdn.modrinth.com/data/1eAoo2KR/08c0cd32515e260f4bb20bbc0696510041523f9a_96.webp" },
+  ],
+  resourcepack: [
+    { id: "50dA9Sha", title: "Fresh Animations", icon: "https://cdn.modrinth.com/data/50dA9Sha/3132c10e9e3c73fde9799720fd3da5561071708c_96.webp" },
+    { id: "A32gwfe8", title: "Enchantment Outlines", icon: "https://cdn.modrinth.com/data/A32gwfe8/9f4bd3edfdb3df167c64757f66b828eba664a616_96.webp" },
+    { id: "u4iPx1Dr", title: "Icon Fresh", icon: "https://cdn.modrinth.com/data/u4iPx1Dr/78fd3b6814105ce2f9e84049f3f9f11969e77729_96.webp" },
+    { id: "UinPYBF7", title: "Enhanced Audio (Sound Pack)", icon: "https://cdn.modrinth.com/data/UinPYBF7/abae34e620e78b564e29b495ee15dee97a226ce1_96.webp" },
+    { id: "oL18adaQ", title: "New Glowing Ores", icon: "https://cdn.modrinth.com/data/oL18adaQ/2bb2608c4f8c4801cbbdd3c60673b3c2228c5027.png" },
+  ],
+  shader: [
+    { id: "HVnmMxH1", title: "Complementary Shaders - Reimagined", icon: "https://cdn.modrinth.com/data/HVnmMxH1/79cb7c8123bbc54945305b2ebad6b8881efdf5f8_96.webp" },
+    { id: "R6NEzAwj", title: "Complementary Shaders - Unbound", icon: "https://cdn.modrinth.com/data/R6NEzAwj/c85ce4049aac76360d2cd24fd9a7003de01ef312_96.webp" },
+    { id: "Q1vvjJYV", title: "BSL Shaders", icon: "https://cdn.modrinth.com/data/Q1vvjJYV/2a611a3cb434fb52fb81fa5dace13c5d8b67e55d_96.webp" },
+  ],
+};
+
 module.exports = {
+  MANGO_PICKS,
   SERVER,
   IMAGES,
   LINKS,

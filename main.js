@@ -29,6 +29,7 @@ const {
   WIKI_SECTIONS,
   NEOGUL_MODS,
   NEOGUL_RESOURCEPACK,
+  MANGO_PICKS,
 } = require("./catalog");
 const COSMETICS = require("./src/cosmetics");
 const { autoUpdater } = require("electron-updater");
@@ -999,7 +1000,8 @@ ipcMain.handle("neogul:list", async () => {
   };
 });
 
-ipcMain.handle("neogul:install", async (_e, id) => {
+ipcMain.handle("neogul:install", (_e, id) => installNeogulMod(id));
+async function installNeogulMod(id) {
   const mod = NEOGUL_MODS.find((m) => m.id === id);
   if (!mod) return { ok: false, error: "모르는 모드예요." };
   try {
@@ -1036,7 +1038,7 @@ ipcMain.handle("neogul:install", async (_e, id) => {
     log(`[너굴 모드] 설치 실패 ${mod.name}: ` + (err?.stack || err));
     return { ok: false, error: String(err?.message || err) };
   }
-});
+}
 
 ipcMain.handle("neogul:remove", async (_e, id) => {
   const mod = NEOGUL_MODS.find((m) => m.id === id);
@@ -1156,11 +1158,13 @@ async function installProject(projectId, kind, seen = new Set()) {
   const file = version.files.find((f) => f.primary) || version.files[0];
   const fileName = safeName(file.filename);
   const project = await mr(`/project/${encodeURIComponent(projectId)}`);
+  const realId = project.id || projectId; // slug 로 불러도 진짜 id 로 기록
+  seen.add(realId);
 
   // 같은 프로젝트의 예전 파일 지우기
   const meta = installedMeta();
   for (const [name, m] of Object.entries(meta)) {
-    if (m.projectId === projectId && name !== fileName) {
+    if (m.projectId === realId && name !== fileName) {
       await fsp.rm(path.join(DIRS[kind], name), { force: true });
       await fsp.rm(path.join(DIRS[kind], name + ".disabled"), { force: true });
       setInstalledMeta(name, null);
@@ -1169,7 +1173,7 @@ async function installProject(projectId, kind, seen = new Set()) {
   await download(file.url, path.join(DIRS[kind], fileName), (p) =>
     send("dl:progress", { id: projectId, pct: Math.round(p) })
   );
-  setInstalledMeta(fileName, { projectId, title: project.title, icon: project.icon_url || null, kind });
+  setInstalledMeta(fileName, { projectId: realId, slug: project.slug || null, title: project.title, icon: project.icon_url || null, kind });
   const installed = [project.title];
 
   // 모드는 꼭 필요한 의존 모드(Fabric API 등)도 같이
@@ -1740,3 +1744,74 @@ function startSiteInfoSchedule() {
 }
 ipcMain.handle("rank:get", () => rank);
 ipcMain.handle("rank:refresh", () => refreshRankings());
+
+
+// ─── 망고's pick · 너굴마을 기본 모드 한 번에 설치 ─────────────────────────────
+function installedProjectKeys() {
+  const keys = new Set();
+  for (const m of Object.values(installedMeta())) {
+    if (m.projectId) keys.add(m.projectId);
+    if (m.slug) keys.add(m.slug);
+  }
+  return keys;
+}
+
+ipcMain.handle("picks:get", () => {
+  const have = installedProjectKeys();
+  const out = {};
+  for (const [kind, list] of Object.entries(MANGO_PICKS)) {
+    out[kind] = list.map((p) => ({ ...p, installed: have.has(p.id) }));
+  }
+  return out;
+});
+
+let picksBusy = false;
+ipcMain.handle("picks:install-all", async (_e, kind) => {
+  if (picksBusy) return { ok: false, error: "이미 설치하는 중이에요." };
+  const list = MANGO_PICKS[kind];
+  if (!list) return { ok: false };
+  picksBusy = true;
+  const failed = [];
+  let done = 0;
+  try {
+    const todo = list.filter((p) => !installedProjectKeys().has(p.id));
+    for (const p of todo) {
+      send("picks:progress", { kind, done, total: todo.length, title: p.title });
+      try {
+        // 앞에서 의존 모드로 이미 깔렸으면 건너뜀
+        if (!installedProjectKeys().has(p.id)) await installProject(p.id, kind);
+      } catch (err) {
+        failed.push(p.title);
+        log(`[망고's pick] ${p.title} 설치 실패: ` + (err?.message || err));
+      }
+      done++;
+    }
+    if (kind === "shader") {
+      try { await ensureShaderLoader(); } catch (_) {}
+    }
+    send("picks:progress", { kind, done, total: todo.length, finished: true });
+    return { ok: true, installed: done - failed.length, failed };
+  } finally {
+    picksBusy = false;
+  }
+});
+
+ipcMain.handle("neogul:install-all", async () => {
+  const files = await modFiles();
+  const failed = [];
+  let count = 0;
+  for (const m of NEOGUL_MODS) {
+    const pats = re(m.patterns);
+    const has = pats.every((rx) => files.some((f) => rx.test(plain(f))));
+    if (has) continue;
+    send("picks:progress", { kind: "neogul", title: m.name });
+    try {
+      // neogul:install 과 같은 길 - 핸들러를 직접 부를 수 없어서 내부 함수로
+      const r = await installNeogulMod(m.id);
+      if (r.ok) count++; else failed.push(m.name);
+    } catch (_) {
+      failed.push(m.name);
+    }
+  }
+  return { ok: true, installed: count, failed };
+});

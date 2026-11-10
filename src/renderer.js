@@ -42,9 +42,13 @@ document.addEventListener("click", (e) => {
   if (url) api.openExternal(url);
 });
 
+let NUGUL_LOGO = null; // 너굴마을 모드 아이콘으로도 씀
+const nugulIcon = (cls = "ng-logo") => `<img class="${cls}" src="${esc(NUGUL_LOGO || INFO?.images?.logo || "")}" alt="" />`;
+
 // 사이트 이미지: PC 에 받아 둔 게 있으면 그걸 쓰고(인터넷 없어도 보임), 없으면 사이트에서 바로
 async function setImages() {
   const imgs = (await api.images?.get?.().catch(() => null)) || INFO.images;
+  NUGUL_LOGO = imgs.logo;
   $$("[data-img]").forEach((img) => {
     img.onerror = () => img.classList.add("broken");
     img.classList.remove("broken");
@@ -260,12 +264,17 @@ const NG_ICONS = {
 async function renderNeogul() {
   const grid = $("#neogulGrid");
   const data = await api.neogulMods.list();
+  const allIn = data.mods.every((m) => m.installed);
+  const ngAll = $("#ngInstallAll");
+  ngAll.disabled = allIn;
+  $("span", ngAll).textContent = allIn ? "기본 모드 모두 설치됨" : "기본 모드 모두 설치";
+  renderPicks();
   grid.innerHTML =
     data.mods
       .map(
         (m) => `<div class="ng-card">
       <div class="ng-top">
-        <div class="ng-icon">${NG_ICONS[m.id] || NG_ICONS.rp}</div>
+        <div class="ng-icon logo">${nugulIcon()}<span class="ng-badge">${NG_ICONS[m.id] || NG_ICONS.rp}</span></div>
         <div class="grow">
           <h3>${esc(m.name)} ${m.installed ? `<span class="state ${m.enabled ? "on" : "off"}">${m.enabled ? "설치됨" : "꺼짐"}</span>` : ""}</h3>
           <p class="sub">${esc(m.sub)}</p>
@@ -285,7 +294,7 @@ async function renderNeogul() {
       )
       .join("") +
     `<div class="ng-card wide">
-      <div class="ng-icon">${NG_ICONS.rp}</div>
+      <div class="ng-icon logo">${nugulIcon()}<span class="ng-badge">${NG_ICONS.rp}</span></div>
       <div class="grow">
         <h3>${esc(data.resourcepack.name)} ${data.resourcepack.installed ? '<span class="state on">설치됨</span>' : ""}</h3>
         <p class="sub">${esc(data.resourcepack.sub)} · ${esc(data.resourcepack.desc)}</p>
@@ -349,7 +358,10 @@ async function doSearch() {
   const r = await api.modrinth.search({ ...searchState });
   if (seq !== searchSeq) return;
   if (!r.ok) {
-    list.innerHTML = `<div class="empty">검색하지 못했어요. 인터넷 연결을 확인해 주세요.</div>`;
+    const pin = !searchState.query && searchState.offset === 0 ? await pinnedTop(searchState.kind) : "";
+    if (seq !== searchSeq) return;
+    list.innerHTML = pin + `<div class="empty">검색하지 못했어요. 인터넷 연결을 확인해 주세요.</div>`;
+    bindPinned(list);
     $("#searchHint").textContent = "";
     return;
   }
@@ -360,8 +372,11 @@ async function doSearch() {
     list.innerHTML = '<div class="empty">검색 결과가 없어요.</div>';
     return;
   }
-  list.innerHTML = r.hits.map(resultRow).join("");
+  const pinned = !searchState.query && searchState.offset === 0 ? await pinnedTop(searchState.kind) : "";
+  if (seq !== searchSeq) return;
+  list.innerHTML = pinned + r.hits.map(resultRow).join("");
   bindResultRows(list, r.hits);
+  bindPinned(list);
 
   const page = Math.floor(searchState.offset / 20) + 1;
   const pages = Math.ceil(r.total / 20);
@@ -386,7 +401,7 @@ function resultRow(h) {
   return `<div class="ri" data-id="${esc(h.id)}">
     ${h.icon ? `<img class="ri-icon" src="${esc(h.icon)}" alt="" loading="lazy" />` : PH_ICON}
     <div class="ri-main">
-      <div class="ri-title">${esc(h.title)} <small>by ${esc(h.author)}</small></div>
+      <div class="ri-title">${esc(h.title)}${isPick(h.id, h.slug) ? PICK_TAG : ""} <small>by ${esc(h.author)}</small></div>
       <div class="ri-desc">${esc(h.desc)}</div>
       <div class="ri-meta"><span>${ICON_DL}${fmtNum(h.downloads)}</span><span>${ICON_HEART}${fmtNum(h.follows)}</span></div>
     </div>
@@ -398,7 +413,7 @@ function resultRow(h) {
 }
 
 function bindResultRows(list, hits) {
-  $$(".ri", list).forEach((row, i) => {
+  $$(".ri:not(.pinned)", list).forEach((row, i) => {
     const h = hits[i];
     $("[data-view]", row).onclick = () => openDetail(h.id, searchState.kind, $("[data-install]", row));
     $("[data-install]", row).onclick = (e) => installFromModrinth(h.id, searchState.kind, e.currentTarget, h.installed);
@@ -537,9 +552,9 @@ async function renderInstalled() {
       }
       const size = it.size ? `${(it.size / 1024 / 1024).toFixed(1)}MB` : "폴더";
       return `<div class="ri ${it.enabled ? "" : "disabled"}" data-file="${esc(it.fileName)}">
-        ${it.icon ? `<img class="ri-icon" src="${esc(it.icon)}" alt="" />` : PH_ICON}
+        ${it.neogul ? nugulIcon("ri-icon") : it.icon ? `<img class="ri-icon" src="${esc(it.icon)}" alt="" />` : PH_ICON}
         <div class="ri-main">
-          <div class="ri-title">${esc(it.title)} ${it.neogul ? '<span class="state on">너굴마을</span>' : ""}</div>
+          <div class="ri-title">${esc(it.title)} ${it.neogul ? '<span class="state on">너굴마을</span>' : ""}${isPick(it.projectId) ? PICK_TAG : ""}</div>
           <div class="ri-desc mono">${esc(it.baseName)}</div>
           <div class="ri-meta"><span>${size}</span>${it.enabled ? "" : "<span>꺼짐</span>"}</div>
         </div>
@@ -1288,3 +1303,133 @@ api.onNeogulUpdated(() => {
   if ($("#page-mods").classList.contains("active") && typeof renderNeogul === "function") renderNeogul();
 });
 api.rank.get().then((r) => (RANK = r));
+
+
+// ─── 망고's pick ─────────────────────────────────────────────────────────────
+const PICK_TAG = '<span class="pick-tag">망고\'s pick</span>';
+let PICKS = null; // { mod: [{id,title,icon,installed}], resourcepack, shader }
+let PICK_KEYS = new Set();
+const isPick = (...keys) => keys.some((k) => k && PICK_KEYS.has(k));
+
+async function loadPicks() {
+  PICKS = await api.picks.get();
+  PICK_KEYS = new Set(Object.values(PICKS).flat().map((p) => p.id));
+  return PICKS;
+}
+
+function pickRow(p, kind) {
+  return `<div class="ri pinned" data-pick="${esc(p.id)}" data-kind="${kind}">
+    ${p.icon ? `<img class="ri-icon" src="${esc(p.icon)}" alt="" loading="lazy" />` : PH_ICON}
+    <div class="ri-main"><div class="ri-title">${esc(p.title)}${PICK_TAG}</div></div>
+    <div class="ri-actions">
+      <button class="btn ghost sm" data-view>자세히</button>
+      <button class="btn ${p.installed ? "done" : "primary"} sm" data-install>${p.installed ? "설치됨" : installLabel(kind)}</button>
+    </div></div>`;
+}
+function bindPickRows(root) {
+  $$(".ri[data-pick]", root).forEach((row) => {
+    const id = row.dataset.pick, kind = row.dataset.kind;
+    const btn = $("[data-install]", row);
+    $("[data-view]", row).onclick = () => openDetail(id, kind, btn);
+    btn.onclick = async () => {
+      await installFromModrinth(id, kind, btn, btn.textContent === "설치됨");
+      loadPicks();
+    };
+  });
+}
+
+const PICK_KIND_LABEL = { mod: "모드", resourcepack: "리소스팩", shader: "쉐이더" };
+async function renderPicks() {
+  const box = $("#picksBox");
+  if (!box) return;
+  await loadPicks();
+  box.innerHTML = ["mod", "resourcepack", "shader"]
+    .map((kind) => {
+      const list = PICKS[kind] || [];
+      const left = list.filter((p) => !p.installed).length;
+      return `<div class="pick-group">
+        <div class="pick-group-head"><h3>${PICK_KIND_LABEL[kind]} <span class="badge">${list.length}</span></h3>
+          <button class="btn ${left ? "primary" : "done"} sm" data-pick-all="${kind}" ${left ? "" : "disabled"}>${left ? `${left}개 모두 설치` : "모두 설치됨"}</button></div>
+        <div class="result-list">${list.map((p) => pickRow(p, kind)).join("")}</div>
+      </div>`;
+    })
+    .join("");
+  bindPickRows(box);
+  $$("[data-pick-all]", box).forEach((b) =>
+    b.addEventListener("click", async () => {
+      const kind = b.dataset.pickAll;
+      b.disabled = true;
+      b.textContent = "준비 중…";
+      b.dataset.progress = kind;
+      const r = await api.picks.installAll(kind);
+      if (!r.ok) toast(r.error || "설치하지 못했어요.", "err");
+      else if (r.failed.length) toast(`${r.installed}개 설치, ${r.failed.length}개 실패 (${r.failed.slice(0, 3).join(", ")}${r.failed.length > 3 ? " 외" : ""})`, "err");
+      else toast(`망고's pick ${PICK_KIND_LABEL[kind]} ${r.installed}개를 설치했어요.`, "ok");
+      renderPicks();
+      updateInstalledCount();
+    })
+  );
+}
+
+api.picks.onProgress(({ kind, done, total, title, finished }) => {
+  if (kind === "neogul") {
+    const b = $("#ngInstallAll span");
+    if (b) b.textContent = `${title} 받는 중…`;
+    return;
+  }
+  const b = document.querySelector(`[data-progress="${kind}"]`);
+  if (b && !finished) b.textContent = `${done + 1}/${total} ${title}`;
+});
+
+$("#ngInstallAll").addEventListener("click", async () => {
+  const b = $("#ngInstallAll");
+  b.disabled = true;
+  const r = await api.neogulMods.installAll();
+  if (r.failed.length) toast(`설치하지 못한 모드: ${r.failed.join(", ")}`, "err");
+  else toast(r.installed ? `너굴마을 기본 모드 ${r.installed}개를 설치했어요.` : "이미 다 설치돼 있어요.", "ok");
+  renderNeogul();
+  updateInstalledCount();
+});
+
+// 모드/리소스팩/쉐이더 탭 맨 위: (모드 탭이면) 너굴마을 기본 모드 + 망고's pick
+async function pinnedTop(kind) {
+  if (!PICKS) await loadPicks();
+  let html = "";
+  if (kind === "mod") {
+    const ng = await api.neogulMods.list();
+    html += `<div class="pin-head"><b>너굴마을 기본 모드</b><button class="link-btn" data-goto-rec>추천 탭에서 한 번에 설치</button></div>` +
+      ng.mods.map((m) => `<div class="ri pinned" data-ng="${m.id}">${nugulIcon("ri-icon")}
+        <div class="ri-main"><div class="ri-title">${esc(m.name)} <span class="state on">너굴마을</span></div><div class="ri-desc">${esc(m.sub)} · ${esc(m.desc)}</div></div>
+        <div class="ri-actions"><button class="btn ${m.installed ? "done" : "primary"} sm" data-ng-one="${m.id}">${m.installed ? "설치됨" : "설치"}</button></div></div>`).join("");
+  }
+  const list = (PICKS[kind] || []);
+  if (list.length) {
+    html += `<div class="pin-head"><b>${PICK_TAG} ${PICK_KIND_LABEL[kind]} ${list.length}개</b><button class="link-btn" data-goto-rec>추천 탭에서 한 번에 설치</button></div>` +
+      list.map((p) => pickRow(p, kind)).join("");
+  }
+  return html ? html + `<div class="pin-head"><b>전체 ${PICK_KIND_LABEL[kind]}</b></div>` : "";
+}
+function bindPinned(root) {
+  bindPickRows(root);
+  $$("[data-goto-rec]", root).forEach((b) => (b.onclick = () => document.querySelector('#modTabs [data-tab="neogul"]').click()));
+  $$("[data-ng-one]", root).forEach((b) =>
+    (b.onclick = async () => {
+      if (b.textContent === "설치됨") return;
+      b.disabled = true;
+      b.textContent = "받는 중…";
+      const r = await api.neogulMods.install(b.dataset.ngOne);
+      b.disabled = false;
+      if (r.ok) { b.className = "btn done sm"; b.textContent = "설치됨"; toast("설치했어요. 다음 PLAY 부터 적용돼요.", "ok"); }
+      else { b.textContent = "설치"; toast(r.error || "설치하지 못했어요.", "err"); }
+      updateInstalledCount();
+    })
+  );
+}
+loadPicks();
+
+// 아이콘을 못 불러오면(인터넷 끊김 등) 깨진 그림 대신 기본 모양으로
+const ICON_FALLBACK = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8a8f99" stroke-width="1.6" stroke-linejoin="round"><rect width="24" height="24" fill="#2c2f37"/><path d="M12 5.5l5.5 3.1v6.3L12 18l-5.5-3.1V8.6z"/></svg>');
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (img?.tagName === "IMG" && (img.classList.contains("ri-icon") || img.classList.contains("ng-logo")) && img.src !== ICON_FALLBACK) img.src = ICON_FALLBACK;
+}, true);

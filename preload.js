@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld("nugul", {
     install: (id) => invoke("neogul:install", id),
     remove: (id) => invoke("neogul:remove", id),
     installResourcePack: () => invoke("neogul:install-resourcepack"),
+    installAll: () => invoke("neogul:install-all"),
   },
 
   modrinth: {
@@ -98,6 +99,11 @@ contextBridge.exposeInMainWorld("nugul", {
     onUpdated: on("images:updated"),
   },
   onNeogulUpdated: on("neogul:updated"),
+  picks: {
+    get: () => invoke("picks:get"),
+    installAll: (kind) => invoke("picks:install-all", kind),
+    onProgress: on("picks:progress"),
+  },
 
   skin: {
     current: () => invoke("skin:current"),

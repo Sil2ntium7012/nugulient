@@ -148,7 +148,7 @@
       </div>
 
       <div class="tabs" id="modTabs">
-        <button class="tab active" data-tab="neogul">너굴마을 전용</button>
+        <button class="tab active" data-tab="neogul">추천</button>
         <button class="tab" data-tab="mod">모드</button>
         <button class="tab" data-tab="resourcepack">리소스팩</button>
         <button class="tab" data-tab="shader">쉐이더</button>
@@ -157,11 +157,24 @@
 
       <!-- 너굴마을 전용 -->
       <div class="tab-panel active" id="tab-neogul">
-        <div class="notice">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.01"/></svg>
-          <span>너굴마을 위키에 올라온 전용 모드예요. 사이트에서 최신 파일을 받아 자동으로 넣어줘요.</span>
+        <div class="rec-head">
+          <div>
+            <h2>너굴마을 기본 모드</h2>
+            <p class="muted small">너굴마을 위키에 올라온 전용 모드예요. 사이트에서 최신 파일을 받아 바로 넣어줘요.</p>
+          </div>
+          <button class="btn primary" id="ngInstallAll">
+            <svg viewBox="0 0 24 24"><path d="M12 4.5v11M7.5 11L12 15.5 16.5 11M5 19.5h14"/></svg>
+            <span>기본 모드 모두 설치</span></button>
         </div>
         <div class="neogul-grid" id="neogulGrid"></div>
+
+        <div class="rec-head picks">
+          <div>
+            <h2><span class="pick-tag big">망고's pick</span> 망고가 너굴마을에서 쓰는 구성</h2>
+            <p class="muted small">노바 클라이언트 너굴마을 프로필에 넣어 쓰던 모드 · 리소스팩 · 쉐이더 그대로예요.</p>
+          </div>
+        </div>
+        <div id="picksBox"></div>
       </div>
 
       <!-- Modrinth 검색 (모드/리소스팩/쉐이더 공용) -->
