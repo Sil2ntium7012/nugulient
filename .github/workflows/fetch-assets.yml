@@ -1,0 +1,15 @@
+name: Fetch site assets (one-off)
+on: workflow_dispatch
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir out
+          curl -fsSL -A "Nugulient-build" -o out/logo.png https://mcng.kr/assets/img/logo.png
+          curl -fsSL -A "Nugulient-build" -o out/server-panorama.png "https://mcng.kr/assets/img/server-panorama.png?v=20260919"
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-assets
+          path: out/
