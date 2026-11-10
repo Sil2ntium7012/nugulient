@@ -149,21 +149,16 @@ for _ in range(9):
     px_rect(fx, GY - 4, fx + 2, GY + 8, GREEN_D)
     px_rect(fx - 2, GY - 8, fx + 4, GY - 4, col)
 
-# ── 오른쪽 사과나무 ──────────────────────────────────────────────────────────
-TX = 820
-px_rect(TX - 8, 420, TX + 8, GY + 8, WOOD)
-px_rect(TX - 8, 420, TX - 4, GY + 8, WOOD_D)
-px_rect(TX + 4, 430, TX + 8, GY + 8, WOOD_L)
-for (bx, by, r) in [(TX, 380, 46), (TX - 42, 404, 32), (TX + 42, 404, 32), (TX - 20, 350, 30), (TX + 22, 352, 30)]:
-    for yy in range(by - r, by + r, 4):
-        for xx in range(bx - r, bx + r, 4):
-            if (xx - bx) ** 2 + (yy - by) ** 2 <= r * r:
-                c = GREEN if random.random() < 0.72 else (GREEN_D if random.random() < 0.6 else GREEN_L)
-                px_rect(xx, yy, xx + 4, yy + 4, c)
-for (ax, ay) in [(TX - 30, 392), (TX + 18, 370), (TX + 40, 412), (TX - 8, 414), (TX - 48, 418)]:
-    px_rect(ax, ay, ax + 8, ay + 8, APPLE)
-    px_rect(ax + 2, ay + 2, ax + 4, ay + 4, (255, 150, 140))
-    px_rect(ax + 3, ay - 2, ax + 5, ay, WOOD_D)
+# ── 오른쪽 사과나무 (픽셀아트 스프라이트 - tree.py) ───────────────────────────
+from tree import make_tree  # noqa: E402
+tree = make_tree()
+TX = 822
+# 나무 그림자 (잔디 위 납작한 타원, 2px 도트)
+for yy in range(-3, 4):
+    for xx in range(-38, 39, 2):
+        if (xx / 38) ** 2 + (yy / 3.5) ** 2 <= 1:
+            px_rect(TX + xx, GY + 12 + yy * 2, TX + xx + 2, GY + 14 + yy * 2, GREEN_D)
+img.paste(tree, (TX - tree.width // 2, GY + 12 - tree.height), tree)
 
 # ── 가운데 너굴마을 로고 ─────────────────────────────────────────────────────
 logo = Image.open(LOGO).convert("RGBA")
