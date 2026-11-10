@@ -22,14 +22,16 @@ npm run dist:win   # → dist\Nugulient-Setup.exe
 - **GitHub Releases 추천** - 설치 파일이 80MB 정도라 디스코드에 직접 못 올리고, 여기에 올려야 자동 업데이트도 돼요. 릴리스 페이지 링크를 공지에 올리면 끝
 - 처음 실행하면 윈도우가 "Windows의 PC 보호" 창을 띄울 수 있어요 (코드 서명 인증서가 없어서). 유저에게 **추가 정보 → 실행** 을 누르라고 안내해 주세요
 
-## 자동 업데이트
+## 자동 업데이트 · 릴리스 올리기
 
-GitHub 저장소 **Sil2ntium7012/nugulient** 의 Releases 로 업데이트해요. (저장소를 먼저 만들어 주세요)
+GitHub 저장소 **Sil2ntium7012/nugulient** 의 Releases 로 배포 · 업데이트해요.
 
-1. `package.json` 의 `version` 올리기 (예: 1.0.1)
-2. `npm run dist:win:publish` (GH_TOKEN 환경 변수 필요)
-   또는 GitHub 에 올리고 `v1.0.1` 태그를 push → Actions 가 대신 빌드해서 Releases 에 올림
-3. 이미 설치한 사람은 켜져 있을 때 새 버전을 받아서, 마크가 꺼져 있으면 바로 알아서 완전히 종료 → 설치 → 다시 실행 (마크 중이면 게임을 끈 직후에)
+1. https://github.com/Sil2ntium7012/nugulient/actions → **Build Nugulient** → **Run workflow** → **Run workflow**
+2. 버전은 알아서 올라가요 (처음 1.0.0, 그다음 1.0.1, 1.0.2 …) — package.json 에도 자동 저장
+3. 몇 분 뒤 Releases 에 `Nugulient-Setup.exe` · `latest.yml` 이 올라감
+4. 이미 설치한 사람은 런처가 새 버전을 받아서, 마크가 꺼져 있으면 바로 알아서 완전히 종료 → 설치 → 다시 실행 (마크 중이면 게임을 끈 직후에)
+
+main 에 코드만 올리면(push) 테스트용 설치 파일만 Actions > Artifacts 에 생기고 배포는 안 돼요.
 
 ## 기능
 
