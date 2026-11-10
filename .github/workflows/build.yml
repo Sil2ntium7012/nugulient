@@ -1,13 +1,20 @@
 name: Build Nugulient
 
-# 터미널 없이 설치 파일 만들기
-# - main 에 올리면 설치 파일(Nugulient-Setup.exe)이 Actions > Artifacts 에 생겨요.
-# - v1.0.1 처럼 "v"로 시작하는 태그를 올리면 GitHub Releases 에도 올라가서
-#   이미 설치한 사람들의 너굴라이언트가 자동으로 업데이트돼요.
-#   (package.json 의 version 을 먼저 올리고 태그를 만들어 주세요)
+# 터미널 없이 설치 파일 만들기 / 릴리스 올리기
+# - main 에 올리면 설치 파일(Nugulient-Setup.exe)이 Actions > Artifacts 에 생겨요. (테스트용)
+# - 릴리스(유저 배포 + 자동 업데이트): Actions > Build Nugulient > Run workflow
+#   > "릴리스로 올리기" 체크 > Run workflow
+#   → package.json 의 version 으로 v버전 릴리스가 만들어지고 Nugulient-Setup.exe · latest.yml 이 올라가요.
+#   (새 버전을 낼 땐 package.json 의 version 을 먼저 올려 주세요. 같은 버전으로 두 번은 안 올라가요)
+# - v1.0.1 처럼 "v"로 시작하는 태그를 push 해도 같은 릴리스가 돼요.
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "릴리스로 올리기 (유저들에게 배포 + 자동 업데이트)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     tags: ["v*"]
@@ -26,11 +33,11 @@ jobs:
       - run: npm install
 
       - name: 설치 파일 빌드
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') && !inputs.release }}
         run: npm run dist:win
 
       - name: 설치 파일 빌드 + Releases 에 올리기 (자동 업데이트용)
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.release }}
         run: npm run dist:win:publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
