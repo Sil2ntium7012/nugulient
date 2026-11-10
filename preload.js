@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld("nugul", {
     check: () => invoke("update:check"),
     install: () => invoke("update:install"),
     onState: on("update:state"),
+    onInstalling: on("update:installing"),
   },
 
   calc: {
@@ -99,6 +100,7 @@ contextBridge.exposeInMainWorld("nugul", {
     onUpdated: on("images:updated"),
   },
   onNeogulUpdated: on("neogul:updated"),
+  onToast: on("toast"),
   picks: {
     get: () => invoke("picks:get"),
     installAll: (kind) => invoke("picks:install-all", kind),

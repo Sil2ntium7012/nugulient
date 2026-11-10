@@ -56,7 +56,16 @@
       "createStartMenuShortcut": true,
       "shortcutName": "너굴라이언트",
       "runAfterFinish": true
-    }
+    },
+    "extraResources": [
+      {
+        "from": "novamod",
+        "to": "novamod",
+        "filter": [
+          "builtin-mod-*.jar"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "adm-zip": "^0.6.0",

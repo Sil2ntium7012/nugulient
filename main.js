@@ -749,6 +749,8 @@ ipcMain.handle("launch:start", async () => {
     const javaPath = await ensureJava();
     const fabricId = await ensureFabric();
     ensureServerInList();
+    // 내 클라이언트 모드(Luna's Light) · 너굴마을 모드체커 · Fabric API 를 항상 넣어 둠
+    const setupDone = await prepareBuiltinMods();
 
     const s = getSettings();
     const launcher = new Client();
@@ -760,8 +762,10 @@ ipcMain.handle("launch:start", async () => {
       javaPath,
       window: { width: s.width, height: s.height, fullscreen: s.fullscreen },
       // 플레이는 무조건 너굴마을로 바로 접속
-      quickPlay: { type: "multiplayer", identifier: `${SERVER.host}:${SERVER.port}` },
+      // (이 PC 에서 모드 처음 설정을 아직 안 했으면, 모드가 설정을 띄운 뒤 너굴마을로 들어감)
+      ...(setupDone ? { quickPlay: { type: "multiplayer", identifier: `${SERVER.host}:${SERVER.port}` } } : {}),
     };
+    await writeModLaunchFile(!setupDone);
 
     let lastPct = 0;
     launcher.on("progress", (e) => {
@@ -778,6 +782,10 @@ ipcMain.handle("launch:start", async () => {
     launcher.on("close", (code) => {
       log("게임 종료, 코드 " + code);
       gameProcess = null;
+      if (pendingAutoInstall && updateState.status === "ready") {
+        pendingAutoInstall = false;
+        autoInstallSoon(updateState.version);
+      }
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
@@ -1488,6 +1496,16 @@ function setUpdate(st) {
   updateState = { ...updateState, ...st };
   send("update:state", updateState);
 }
+let pendingAutoInstall = false;
+function autoInstallSoon(version) {
+  log(`[업데이트] ${version || ""} 자동 설치 시작`);
+  send("update:installing", { version });
+  // 화면에 "업데이트 중" 알림이 잠깐 보이게 하고 완전히 종료 → 설치 → 다시 실행
+  setTimeout(() => {
+    if (gameProcess || launching) { pendingAutoInstall = true; return; }
+    try { autoUpdater.quitAndInstall(true, true); } catch (err) { log("[업데이트] 설치 실패: " + (err?.message || err)); }
+  }, 2500);
+}
 function setupAutoUpdate() {
   if (!app.isPackaged) return; // npm start 로 켤 땐 안 함
   autoUpdater.autoDownload = true;
@@ -1496,7 +1514,16 @@ function setupAutoUpdate() {
   autoUpdater.on("update-not-available", () => setUpdate({ status: "none" }));
   autoUpdater.on("update-available", (info) => setUpdate({ status: "downloading", version: info.version, pct: 0 }));
   autoUpdater.on("download-progress", (p) => setUpdate({ status: "downloading", pct: Math.round(p.percent) }));
-  autoUpdater.on("update-downloaded", (info) => setUpdate({ status: "ready", version: info.version }));
+  autoUpdater.on("update-downloaded", (info) => {
+    setUpdate({ status: "ready", version: info.version });
+    // 노바클처럼: 마크가 꺼져 있으면 바로 조용히 설치하고 다시 켬, 켜져 있으면 끈 직후에
+    if (gameProcess || launching) {
+      pendingAutoInstall = true;
+      log(`[업데이트] ${info.version} 받음 - 게임을 끄면 설치`);
+    } else {
+      autoInstallSoon(info.version);
+    }
+  });
   autoUpdater.on("error", (err) => {
     log("[업데이트] " + (err?.message || err));
     setUpdate({ status: "error" });
@@ -1815,3 +1842,124 @@ ipcMain.handle("neogul:install-all", async () => {
   }
   return { ok: true, installed: count, failed };
 });
+
+
+// ─── 내 클라이언트 모드(Luna's Light) · 너굴마을 모드체커 · Fabric API 자동 주입 ───────
+// 노바 클라이언트와 같은 방식: 실행할 때마다 mods 폴더에 넣고, 서명한 실행 토큰을 같이 써서
+// 모드가 "정식 런처로 켰다"는 걸 알게 함(토큰이 없으면 모드가 기능을 스스로 끔).
+// ⚠️ 비밀값은 Luna's Light(Nova-Mod) 쪽 값과 같아야 함.
+const LAUNCH_SECRET = "677ba6308331ba9b0fb83bfdb6e3a52f81e890f38343001aa9ced084e04c751e";
+const BUILTIN_PREFIX = "builtin-mod-";
+const MODCHECKER_URL = "https://mcng.kr/mods/ng-modchecker.zip";
+const MODCHECKER_NAME = "builtin-ngmodchecker.jar";
+const FABRIC_API_ID = "P7dR8mSH";
+const SETUP_PREFS = path.join(ROOT, "first-setup.json");
+
+// 개발자용: %APPDATA%\Nugulient\novamod 에 jar 가 있으면 그걸 먼저 씀(모드 새로 빌드 → 바로 확인)
+function builtinModSource() {
+  const dirs = [path.join(ROOT, "novamod"), app.isPackaged ? path.join(process.resourcesPath, "novamod") : path.join(__dirname, "novamod")];
+  for (const d of dirs) {
+    try {
+      const f = fs.readdirSync(d).find((n) => n.startsWith(BUILTIN_PREFIX) && n.includes(`+mc${SERVER.mcVersion}.jar`));
+      if (f) return path.join(d, f);
+    } catch (_) {}
+  }
+  return null;
+}
+
+async function ensureModChecker() {
+  const dest = path.join(DIRS.mod, MODCHECKER_NAME);
+  const meta = store.get("modcheckerMeta") || {};
+  // 하루에 한 번만 새로 받는지 확인 (못 받으면 있는 걸 씀)
+  if (fs.existsSync(dest) && Date.now() - (meta.checkedAt || 0) < 24 * 3600 * 1000) return;
+  try {
+    const headers = { "User-Agent": USER_AGENT };
+    if (fs.existsSync(dest) && meta.etag) headers["If-None-Match"] = meta.etag;
+    const res = await fetch(MODCHECKER_URL, { headers, timeout: 20000 });
+    if (res.status === 304) { store.set("modcheckerMeta", { ...meta, checkedAt: Date.now() }); return; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.buffer();
+    const zip = new AdmZip(buf);
+    let jar = null;
+    if (zip.getEntry("fabric.mod.json")) jar = buf; // 이름만 zip 이고 사실 jar
+    else jar = zip.getEntries().find((e) => !e.isDirectory && e.entryName.toLowerCase().endsWith(".jar"))?.getData() || null;
+    if (!jar) throw new Error("모드 jar 를 찾지 못했어요");
+    await fsp.writeFile(dest + ".part", jar);
+    await fsp.rename(dest + ".part", dest);
+    store.set("modcheckerMeta", { etag: res.headers.get("etag") || null, checkedAt: Date.now() });
+    setInstalledMeta(MODCHECKER_NAME, { title: "너굴마을 모드체커 (자동)", neogul: "modchecker" });
+    log("[모드체커] 새로 받음");
+  } catch (err) {
+    log("[모드체커] 받기 실패: " + (err?.message || err));
+    if (!fs.existsSync(dest)) send("toast", { msg: "너굴마을 모드체커를 받지 못했어요. 접속이 막힐 수 있어요.", kind: "err" });
+  }
+}
+
+// 돌려주는 값: 모드 처음 설정을 이미 했는지 (안 했으면 바로 접속하지 않음)
+async function prepareBuiltinMods() {
+  progress("fabric", 80, "너굴라이언트 모드 준비 중");
+  // 꺼둔(.disabled) 것도 포함해서 우리 모드 옛 파일 정리
+  const files = await modFiles();
+  const src = builtinModSource();
+  if (src) {
+    const name = path.basename(src);
+    for (const f of files) if (plain(f).startsWith(BUILTIN_PREFIX) && f !== name) await fsp.rm(path.join(DIRS.mod, f), { force: true });
+    await fsp.copyFile(src, path.join(DIRS.mod, name));
+    setInstalledMeta(name, { title: "너굴라이언트 모드 (자동)", neogul: "client" });
+  } else {
+    log("[내장 모드] " + SERVER.mcVersion + " 용 jar 가 없어서 건너뜀");
+  }
+  await ensureModChecker();
+  // Luna's Light 는 Fabric API 가 있어야 켜짐
+  if (!files.some((f) => /^fabric-api-.*\.jar$/i.test(f)) && !installedProjectKeys().has(FABRIC_API_ID)) {
+    try { await installProject(FABRIC_API_ID, "mod"); } catch (err) { log("[Fabric API] 설치 실패: " + (err?.message || err)); }
+  }
+  return !src || fs.existsSync(SETUP_PREFS);
+}
+
+// 너굴마을 전용 인게임 테마 (나무 프레임 + 크림 패널 + 초록 포인트, 픽셀 느낌)
+// 모드가 cosmetics.theme.mode = "neogul" 과 palette 를 읽어서 게임 안 화면을 이 색으로 그림.
+// 런처 테마(보관함에서 장착한 것)는 따라가지 않음.
+const NEOGUL_INGAME_THEME = {
+  mode: "neogul",
+  name: "너굴마을",
+  pixel: true,
+  palette: {
+    frame: "#8a5a3b",       // 나무 프레임
+    frameDark: "#5e3a24",   // 프레임 테두리 · 그림자
+    frameLight: "#b07a52",  // 프레임 밝은 결
+    panel: "#efe5cf",       // 크림 패널
+    panelDark: "#e0d3b6",
+    slot: "#a7a08f",        // 칸
+    slotDark: "#8b8474",
+    accent: "#6fae4f",      // 초록 포인트
+    accentDark: "#4e8a35",
+    text: "#4a2e1f",        // 진한 갈색 글자
+    textLight: "#fff6e4",
+  },
+};
+
+async function writeModLaunchFile(pendingServer) {
+  try {
+    const ts = Date.now();
+    const sigFor = (prefix) => crypto.createHmac("sha256", LAUNCH_SECRET).update(prefix + ts).digest("hex");
+    const prof = profileFrom(cachedAuth);
+    const payload = {
+      launcherVersion: APP_VERSION,
+      launcher: "Nugulient",
+      logoUrl: IMAGES.logo,
+      activeUuid: prof.uuid || null,
+      accounts: prof.uuid ? [{ uuid: prof.uuid, name: prof.name, accessToken: cachedAuth?.access_token || cachedAuth?.accessToken || null }] : [],
+      // 너굴마을 전용 테마 고정 (accent 만 보는 옛 모드도 초록으로 보이게)
+      cosmetics: { accent: NEOGUL_INGAME_THEME.palette.accent, theme: NEOGUL_INGAME_THEME },
+      // 재접속(세션 새로고침 후 재접속) 기능 끔 - 너굴라이언트는 이 요청을 처리하지 않음
+      features: { relogin: false, reconnect: false },
+      setupPrefsPath: SETUP_PREFS,
+      ...(pendingServer ? { pendingServer: `${SERVER.host}:${SERVER.port}`, pendingServerName: SERVER.name } : {}),
+    };
+    await fsp.writeFile(path.join(GAME_DIR, ".luna-launch.json"), JSON.stringify({ ts, sig: sigFor("LunaClient::"), ...payload }), "utf-8");
+    await fsp.writeFile(path.join(GAME_DIR, ".nova-launch.json"), JSON.stringify({ ts, sig: sigFor("NovaClient::"), ...payload }), "utf-8");
+  } catch (err) {
+    log("[내장 모드] 실행 토큰 기록 실패: " + (err?.message || err));
+  }
+}

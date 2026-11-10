@@ -627,3 +627,7 @@ img.ri-icon { object-fit: contain; background: var(--bg-3); }
 .pin-head b { font-weight: 800; display: flex; align-items: center; }
 .pin-head .pick-tag { margin: 0 6px 0 0; }
 .ri.pinned { border-color: color-mix(in srgb, var(--accent) 25%, var(--border-soft)); }
+.mem-quick { display: flex; align-items: center; gap: 7px; padding: 5px 6px 5px 12px; border-radius: 999px; background: rgba(21,17,13,.72); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.08); color: #e6ded4; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.mem-quick svg { width: 16px; height: 16px; }
+.mem-quick select { height: 28px; padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,.08); border: none; color: #fff; font-weight: 800; font-size: 12.5px; cursor: pointer; }
+.mem-quick select option { color: #111; }

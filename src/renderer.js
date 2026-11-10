@@ -751,6 +751,7 @@ $$("[data-folder]").forEach((b) => b.addEventListener("click", () => api.openFol
 
 async function loadSettings() {
   const s = await api.settings.get();
+  fillMemQuick(s);
   SETTINGS = s;
   applyAppearance();
   const sys = await api.systemMemory();
@@ -1433,3 +1434,24 @@ document.addEventListener("error", (e) => {
   const img = e.target;
   if (img?.tagName === "IMG" && (img.classList.contains("ri-icon") || img.classList.contains("ng-logo")) && img.src !== ICON_FALLBACK) img.src = ICON_FALLBACK;
 }, true);
+
+api.onToast?.(({ msg, kind }) => toast(msg, kind));
+api.update.onInstalling?.(({ version }) => toast(`새 버전${version ? " " + version : ""} 설치를 위해 잠깐 껐다 켤게요…`, "ok"));
+
+// 홈 PLAY 옆 메모리 빠른 설정 (설정 > 게임 슬라이더와 같은 값)
+async function fillMemQuick(s) {
+  const sys = await api.systemMemory();
+  const max = Math.max(4, Math.min(32, sys - 2));
+  const sel = $("#memQuick");
+  const cur = Math.min(s.memoryGB, max);
+  sel.innerHTML = Array.from({ length: max - 1 }, (_, i) => i + 2)
+    .map((g) => `<option value="${g}" ${g === cur ? "selected" : ""}>${g}GB${g === 4 ? " (추천)" : ""}</option>`).join("");
+}
+$("#memQuick").addEventListener("change", async (e) => {
+  const v = Number(e.target.value);
+  await api.settings.set({ memoryGB: v });
+  $("#setMemory").value = String(v);
+  $("#setMemoryVal").textContent = `${v}GB`;
+  toast(`메모리를 ${v}GB 로 바꿨어요. 다음 PLAY 부터 적용돼요.`, "ok");
+});
+$("#setMemory").addEventListener("change", (e) => { $("#memQuick").value = e.target.value; });
