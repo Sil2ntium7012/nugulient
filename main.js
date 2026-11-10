@@ -4,7 +4,7 @@
 // 너굴마을(mcng.kr, 26.1.2 Fabric) 하나만 쓰도록 줄인 버전.
 // 계정 서버 같은 건 없고, 모든 데이터는 이 PC 의 %APPDATA%\Nugulient 에만 저장됩니다.
 // ─────────────────────────────────────────────────────────────────────────────
-const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, powerMonitor, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, powerMonitor, safeStorage, nativeImage } = require("electron");
 const crypto = require("crypto");
 const os = require("os");
 const path = require("path");
@@ -286,8 +286,33 @@ ipcMain.on("win:minimize", () => mainWindow?.minimize());
 ipcMain.on("win:close", () => mainWindow?.close());
 ipcMain.handle("open:external", (_e, url) => openExternalSafe(url));
 ipcMain.handle("open:folder", (_e, which) => {
-  const target = which === "root" ? GAME_DIR : DIRS[which] || GAME_DIR;
+  const extra = { root: GAME_DIR, screenshots: path.join(GAME_DIR, "screenshots"), logs: path.join(GAME_DIR, "logs"), launcher: ROOT };
+  const target = extra[which] || DIRS[which] || GAME_DIR;
+  fs.mkdirSync(target, { recursive: true });
   return shell.openPath(target);
+});
+
+// ─── 기능: 스크린샷 · 리소스팩 깨짐 해결 ─────────────────────────────────────
+ipcMain.handle("tools:screenshots", async () => {
+  const dir = path.join(GAME_DIR, "screenshots");
+  const names = (await fsp.readdir(dir).catch(() => [])).filter((n) => /\.png$/i.test(n));
+  const withTime = await Promise.all(names.map(async (n) => ({ n, t: (await fsp.stat(path.join(dir, n)).catch(() => ({ mtimeMs: 0 }))).mtimeMs })));
+  withTime.sort((a, b) => b.t - a.t);
+  return withTime.slice(0, 24).map(({ n, t }) => {
+    let thumb = null;
+    try { thumb = nativeImage.createFromPath(path.join(dir, n)).resize({ width: 320 }).toDataURL(); } catch (_) {}
+    return { name: n, at: t, thumb };
+  });
+});
+ipcMain.handle("tools:open-screenshot", (_e, name) => shell.openPath(path.join(GAME_DIR, "screenshots", path.basename(String(name)))));
+// 위키 안내대로: downloads 폴더(서버 리소스팩이 받아지는 곳)를 지우면 다음 접속 때 새로 받음
+ipcMain.handle("tools:clear-rp-cache", async () => {
+  if (gameProcess) return { ok: false, error: "게임을 끈 다음에 해 주세요." };
+  const dir = path.join(GAME_DIR, "downloads");
+  if (!fs.existsSync(dir)) return { ok: true, empty: true };
+  await fsp.rm(dir, { recursive: true, force: true });
+  log("[기능] 서버 리소스팩 캐시(downloads) 삭제");
+  return { ok: true };
 });
 ipcMain.handle("settings:get", () => getSettings());
 ipcMain.handle("settings:set", (_e, partial) => {

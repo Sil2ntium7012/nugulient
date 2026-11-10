@@ -64,7 +64,8 @@ api.images?.onUpdated?.(() => setImages());
 
 // ─── 페이지 이동 ─────────────────────────────────────────────────────────────
 function showPage(name) {
-  $$(".nav-item[data-page]").forEach((b) => b.classList.toggle("active", b.dataset.page === name));
+  const navName = name === "calc" ? "tools" : name; // 계산기는 기능 안에 있음
+  $$(".nav-item[data-page]").forEach((b) => b.classList.toggle("active", b.dataset.page === navName));
   $$(".page").forEach((p) => p.classList.toggle("active", p.id === `page-${name}`));
   if (name === "mods") refreshModsTab();
   if (name === "skin") openSkinPage();
@@ -728,14 +729,12 @@ async function renderRecent() {
 window.addEventListener("resize", () => viewer && $("#page-skin").classList.contains("active") && ensureViewer());
 
 // ─── 위키 ────────────────────────────────────────────────────────────────────
+// 홈 "위키 바로가기" - 자주 찾는 항목만 골라서
+const WIKI_PICK = ["접속방법", "디코인증", "명령어", "마인팜", "레벨 · 스킬", "요리", "던전 · 몬스터", "광산", "낚시 · 도감", "무역", "채집", "일일퀘스트", "치장", "일반강화", "초월강화", "핫타임", "추천 보상"];
 function renderWiki() {
-  $("#wikiSections").innerHTML = INFO.wikiSections
-    .map(
-      (g) => `<div class="ws"><h3>${esc(g.group)}</h3><div class="ws-chips">${g.items
-        .map((it) => `<button class="chip-btn" data-url="${esc(it.url)}">${esc(it.label)}</button>`)
-        .join("")}</div></div>`
-    )
-    .join("");
+  const all = INFO.wikiSections.flatMap((g) => g.items);
+  const picked = WIKI_PICK.map((l) => all.find((it) => it.label === l)).filter(Boolean);
+  $("#wikiSections").innerHTML = picked.map((it) => `<button class="chip-btn" data-url="${esc(it.url)}">${esc(it.label)}</button>`).join("");
 }
 
 // ─── 설정 ────────────────────────────────────────────────────────────────────
@@ -782,6 +781,7 @@ $("#setMemory").addEventListener("input", (e) => ($("#setMemoryVal").textContent
   setImages();
   renderContents();
   renderWiki();
+  renderRecommend();
   $("#verText").textContent = INFO.server.mcVersion;
   $("#copyIp").textContent = INFO.server.host;
   $("#appVersion").textContent = `너굴라이언트 ${INFO.version}`;
@@ -1455,3 +1455,62 @@ $("#memQuick").addEventListener("change", async (e) => {
   toast(`메모리를 ${v}GB 로 바꿨어요. 다음 PLAY 부터 적용돼요.`, "ok");
 });
 $("#setMemory").addEventListener("change", (e) => { $("#memQuick").value = e.target.value; });
+
+
+// ─── 홈: 추천하고 보상 받기 ──────────────────────────────────────────────────
+const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
+const kstDay = () => kstNow().toISOString().slice(0, 10);
+function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+function renderRecommend() {
+  const done = lsGet("recDay") === kstDay();
+  const st = $("#recState");
+  st.textContent = done ? "오늘 추천 완료 ✓" : "오늘 아직 안 했어요";
+  st.classList.toggle("done", done);
+  const k = kstNow();
+  const h = k.getUTCHours(), m = k.getUTCMinutes();
+  let hot;
+  if (h === 20) hot = "🔥 지금 핫타임이에요! 추천 보상이 2배예요";
+  else if (h < 20) {
+    const left = (20 - h) * 60 - m;
+    hot = `저녁 8시 핫타임까지 ${Math.floor(left / 60) ? Math.floor(left / 60) + "시간 " : ""}${left % 60}분 · 핫타임엔 보상 2배`;
+  } else hot = "오늘 핫타임은 끝났어요 · 자정에 추천이 초기화돼요";
+  $("#recHot").textContent = hot;
+  $("#recHot").classList.toggle("now", h === 20);
+}
+$("#recBtn").addEventListener("click", () => {
+  api.openExternal(INFO.links.minelist);
+  lsSet("recDay", kstDay());
+  renderRecommend();
+  toast("마인리스트가 열렸어요. 추천하면 다음 접속 때 /우편함으로 보상이 와요.", "ok");
+});
+setInterval(() => INFO && renderRecommend(), 60_000);
+
+// ─── 기능 페이지 ─────────────────────────────────────────────────────────────
+document.addEventListener("click", (e) => {
+  const go = e.target.closest("[data-goto]");
+  if (go) return showPage(go.dataset.goto);
+  const cg = e.target.closest("[data-calc-go]");
+  if (cg && window.NugulTools) window.NugulTools.openCalc(cg.dataset.calcGo);
+});
+$("#toolRpFix").addEventListener("click", async () => {
+  if (!confirm("서버 리소스팩을 지우고 다음 접속 때 새로 받게 할까요?\n(글자나 아이템이 깨질 때 쓰는 방법이에요)")) return;
+  const r = await api.tools.clearRpCache();
+  if (!r.ok) return toast(r.error, "err");
+  toast(r.empty ? "지울 게 없어요. 접속하면 새로 받아져요." : "지웠어요. 다음에 접속하면 리소스팩을 새로 받아요.", "ok");
+});
+$("#toolShots").addEventListener("click", async () => {
+  $("#shotsModal").hidden = false;
+  const grid = $("#shotsGrid");
+  grid.innerHTML = '<div class="spinner"></div>';
+  const list = await api.tools.screenshots();
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty">아직 스크린샷이 없어요.<br/><span class="small">게임 안에서 F2 를 누르면 찍혀요.</span></div>';
+    return;
+  }
+  grid.innerHTML = list.map((x) => {
+    const d = new Date(x.at);
+    return `<button class="shot" data-shot="${esc(x.name)}" title="${esc(x.name)}">${x.thumb ? `<img src="${x.thumb}" alt="" />` : ""}<span>${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</span></button>`;
+  }).join("");
+  $$("[data-shot]", grid).forEach((b) => (b.onclick = () => api.tools.openScreenshot(b.dataset.shot)));
+});

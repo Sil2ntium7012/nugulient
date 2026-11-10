@@ -101,6 +101,11 @@ contextBridge.exposeInMainWorld("nugul", {
   },
   onNeogulUpdated: on("neogul:updated"),
   onToast: on("toast"),
+  tools: {
+    screenshots: () => invoke("tools:screenshots"),
+    openScreenshot: (name) => invoke("tools:open-screenshot", name),
+    clearRpCache: () => invoke("tools:clear-rp-cache"),
+  },
   picks: {
     get: () => invoke("picks:get"),
     installAll: (kind) => invoke("picks:install-all", kind),
