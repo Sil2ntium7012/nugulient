@@ -730,7 +730,7 @@ window.addEventListener("resize", () => viewer && $("#page-skin").classList.cont
 
 // ─── 위키 ────────────────────────────────────────────────────────────────────
 // 홈 "위키 바로가기" - 자주 찾는 항목만 골라서
-const WIKI_PICK = ["접속방법", "디코인증", "명령어", "마인팜", "레벨 · 스킬", "요리", "던전 · 몬스터", "광산", "낚시 · 도감", "무역", "채집", "일일퀘스트", "치장", "일반강화", "초월강화", "핫타임", "추천 보상"];
+const WIKI_PICK = ["접속방법", "명령어", "마인팜", "요리", "던전 · 몬스터", "낚시 · 도감", "무역", "일반강화"];
 function renderWiki() {
   const all = INFO.wikiSections.flatMap((g) => g.items);
   const picked = WIKI_PICK.map((l) => all.find((it) => it.label === l)).filter(Boolean);
@@ -1465,16 +1465,16 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
 function renderRecommend() {
   const done = lsGet("recDay") === kstDay();
   const st = $("#recState");
-  st.textContent = done ? "오늘 추천 완료 ✓" : "오늘 아직 안 했어요";
+  st.textContent = done ? "오늘 완료 ✓" : "오늘 아직 안 했어요";
   st.classList.toggle("done", done);
   const k = kstNow();
   const h = k.getUTCHours(), m = k.getUTCMinutes();
   let hot;
-  if (h === 20) hot = "🔥 지금 핫타임이에요! 추천 보상이 2배예요";
+  if (h === 20) hot = "🔥 지금 핫타임 · 보상 2배";
   else if (h < 20) {
     const left = (20 - h) * 60 - m;
-    hot = `저녁 8시 핫타임까지 ${Math.floor(left / 60) ? Math.floor(left / 60) + "시간 " : ""}${left % 60}분 · 핫타임엔 보상 2배`;
-  } else hot = "오늘 핫타임은 끝났어요 · 자정에 추천이 초기화돼요";
+    hot = `핫타임(2배)까지 ${Math.floor(left / 60) ? Math.floor(left / 60) + "시간 " : ""}${left % 60}분`;
+  } else hot = "자정에 초기화 · 내일 8시 핫타임";
   $("#recHot").textContent = hot;
   $("#recHot").classList.toggle("now", h === 20);
 }

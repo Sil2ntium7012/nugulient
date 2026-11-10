@@ -12,7 +12,7 @@
 <header class="titlebar">
   <div class="brand">
     <img class="brand-logo" data-img="logo" alt="" />
-    <span class="brand-text"><b>너굴</b>라이언트</span>
+    <span class="brand-text" data-text="너굴라이언트">너굴라이언트</span>
   </div>
   <div class="win-buttons">
     <button class="win-btn" id="btnMin" title="최소화"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
@@ -116,42 +116,24 @@
 
       <div class="home-links">
         <div class="hl-card rec">
-          <div class="hl-head">
-            <div>
-              <h2>추천하고 보상 받기</h2>
-              <p class="muted small">하루 1번 · 자정에 초기화 · 보상은 게임 안 <b>/우편함</b>으로 와요</p>
-            </div>
+          <div class="hl-row">
+            <h2>추천하고 보상 받기</h2>
             <span class="rec-state" id="recState">오늘 아직 안 했어요</span>
           </div>
-          <button class="rec-btn" id="recBtn">
-            <span class="rec-site"><b>마인리스트</b><small>minelist.kr</small></span>
-            <span class="rec-go">추천하러 가기
-              <svg viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8.5A1.5 1.5 0 0 1 6 7h4"/></svg></span>
-          </button>
-          <p class="rec-hot" id="recHot">저녁 8시 핫타임에 추천하면 보상이 2배예요</p>
-          <div class="rec-rewards">
-            <span>추천 코인 ×1</span><span>자동심기 쿠폰 ×1</span><span>플라이 쿠폰 ×4</span><span>농작물 스크롤 ×2</span>
-            <span>주문의 흔적 ×4</span><span>머니 복권 ×1</span><span>다이아몬드 ×16</span>
+          <div class="hl-row">
+            <p class="rec-hot" id="recHot">저녁 8시 핫타임엔 보상 2배</p>
+            <button class="rec-btn" id="recBtn" title="보상: 추천 코인 1 · 자동심기 쿠폰 1 · 플라이 쿠폰 4 · 농작물 스크롤 2 · 주문의 흔적 4 · 머니 복권 1 · 다이아몬드 16 (하루 1번, 자정 초기화, /우편함으로 지급)">
+              마인리스트 추천
+              <svg viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8.5A1.5 1.5 0 0 1 6 7h4"/></svg></button>
           </div>
         </div>
 
         <div class="hl-card wiki">
-          <div class="hl-head">
-            <div>
-              <h2>위키 바로가기</h2>
-              <p class="muted small">누르면 브라우저에서 해당 항목이 바로 열려요</p>
-            </div>
-            <button class="link-btn" data-link="wiki">위키 전체 열기</button>
+          <div class="hl-row">
+            <h2>위키 바로가기</h2>
+            <button class="link-btn" data-link="wiki">전체 열기</button>
           </div>
           <div class="ws-chips" id="wikiSections"></div>
-          <div class="hl-sites">
-            <button data-link="discord" class="discord">디스코드</button>
-            <button data-link="community">추천·커뮤니티</button>
-            <button data-link="rules">규칙</button>
-            <button data-link="player">플레이어 검색</button>
-            <button data-link="shop">후원</button>
-            <button data-link="site">mcng.kr</button>
-          </div>
         </div>
       </div>
     </section>
@@ -549,7 +531,7 @@
             <button class="btn ghost sm" id="btnUpdateCheck">업데이트 확인</button>
           </div>
         </div>
-        <p class="legal">너굴마을의 이름 · 로고 · 이미지는 너굴마을(mcng.kr)의 것이에요.<br/>NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.</p>
+        <p class="legal">너굴마을의 이름 · 로고 · 이미지는 너굴마을(mcng.kr)의 것이에요.<br/>제목 글씨: Galmuri (갈무리) 폰트 — SIL Open Font License 1.1<br/>NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.</p>
       </div>
     </div>
   </div>
