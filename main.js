@@ -835,6 +835,7 @@ ipcMain.handle("launch:start", async () => {
         pendingAutoInstall = false;
         autoInstallSoon(updateState.version);
       }
+      else checkUpdateNow(true);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
@@ -1577,8 +1578,18 @@ function setupAutoUpdate() {
     log("[업데이트] " + (err?.message || err));
     setUpdate({ status: "error" });
   });
+  checkUpdateNow(true);
+  // 5분마다 + 창을 다시 볼 때 + 게임을 껐을 때 확인 (받는 중이거나 이미 받아 둔 때는 건너뜀)
+  setInterval(() => checkUpdateNow(), 5 * 60 * 1000);
+  app.on("browser-window-focus", () => checkUpdateNow());
+}
+let lastUpdateCheck = 0;
+function checkUpdateNow(force) {
+  if (!app.isPackaged) return;
+  if (["checking", "downloading", "ready"].includes(updateState.status)) return;
+  if (!force && Date.now() - lastUpdateCheck < 60 * 1000) return; // 너무 잦지 않게 1분 간격은 둠
+  lastUpdateCheck = Date.now();
   autoUpdater.checkForUpdates().catch(() => {});
-  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 3 * 3600 * 1000);
 }
 ipcMain.handle("update:state", () => ({ ...updateState, packaged: app.isPackaged }));
 ipcMain.handle("update:check", async () => {
