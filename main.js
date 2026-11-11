@@ -826,7 +826,11 @@ ipcMain.handle("launch:start", async () => {
         progress("game", pct, `${label} 받는 중`);
       }
     });
-    launcher.on("data", (line) => log(String(line).trimEnd()));
+    launcher.on("data", (line) => {
+      const text = String(line).trimEnd();
+      log(text);
+      watchRecommend(text);
+    });
     launcher.on("debug", (line) => log("[debug] " + String(line).trimEnd()));
     launcher.on("close", (code) => {
       log("게임 종료, 코드 " + code);
@@ -1591,6 +1595,22 @@ function checkUpdateNow(force) {
   lastUpdateCheck = Date.now();
   autoUpdater.checkForUpdates().catch(() => {});
 }
+// ─── 서버 추천 여부: 게임 채팅에 뜨는 서버 안내로 알아냄 ─────────────────────────
+//   "<내 닉네임>님이 오늘 N번째로 서버를 추천해주셨습니다!" / "추천 보상이 /우편함으로 지급되었습니다!"
+function watchRecommend(text) {
+  if (!text.includes("[CHAT]") || !text.includes("추천")) return;
+  if (!/\[System\] \[CHAT\]/.test(text)) return; // 다른 유저가 채팅으로 따라 친 건 무시
+  const name = secure.get("account")?.name;
+  const mine = name && text.includes(`${name}님이 오늘`) && text.includes("서버를 추천해주셨습니다");
+  if (!mine && !text.includes("추천 보상이 /우편함으로 지급되었습니다")) return;
+  const day = (ms) => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  if (day(store.get("recommendAt") || 0) === day(Date.now())) return; // 오늘 이미 기록함 (안내가 두 줄 연달아 옴)
+  store.set("recommendAt", Date.now());
+  log("[추천] 오늘 서버 추천 확인");
+  send("rec:done", { at: Date.now() });
+}
+ipcMain.handle("rec:get", () => ({ at: store.get("recommendAt") || 0 }));
+
 ipcMain.handle("update:state", () => ({ ...updateState, packaged: app.isPackaged }));
 ipcMain.handle("update:check", async () => {
   if (!app.isPackaged) return { ok: false, error: "설치한 버전에서만 업데이트를 확인할 수 있어요." };

@@ -101,6 +101,7 @@ contextBridge.exposeInMainWorld("nugul", {
   },
   onNeogulUpdated: on("neogul:updated"),
   onToast: on("toast"),
+  rec: { get: () => invoke("rec:get"), onDone: on("rec:done") },
   tools: {
     screenshots: () => invoke("tools:screenshots"),
     openScreenshot: (name) => invoke("tools:open-screenshot", name),

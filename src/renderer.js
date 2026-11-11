@@ -1462,8 +1462,17 @@ const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
 const kstDay = () => kstNow().toISOString().slice(0, 10);
 function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+// 추천했는지는 게임 채팅의 서버 안내("…님이 오늘 N번째로 서버를 추천해주셨습니다")로 런처가 알아냄
+let recAt = 0;
+const kstDayOf = (ms) => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
+api.rec.get().then((r) => { recAt = r?.at || 0; if (INFO) renderRecommend(); }).catch(() => {});
+api.rec.onDone((r) => {
+  recAt = r?.at || Date.now();
+  if (INFO) renderRecommend();
+  toast("오늘 서버 추천 완료!", "ok");
+});
 function renderRecommend() {
-  const done = lsGet("recDay") === kstDay();
+  const done = !!recAt && kstDayOf(recAt) === kstDay();
   const st = $("#recState");
   st.textContent = done ? "오늘 완료 ✓" : "오늘 아직 안 했어요";
   st.classList.toggle("done", done);
@@ -1480,9 +1489,7 @@ function renderRecommend() {
 }
 $("#recBtn").addEventListener("click", () => {
   api.openExternal(INFO.links.minelist);
-  lsSet("recDay", kstDay());
-  renderRecommend();
-  toast("마인리스트가 열렸어요. 추천하면 다음 접속 때 /우편함으로 보상이 와요.", "ok");
+  toast("마인리스트가 열렸어요. 추천하고 게임에 들어가면 보상이 오고 여기도 완료로 바뀌어요.", "ok");
 });
 setInterval(() => INFO && renderRecommend(), 60_000);
 
