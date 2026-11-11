@@ -797,7 +797,7 @@ ipcMain.handle("launch:start", async () => {
     const javaPath = await ensureJava();
     const fabricId = await ensureFabric();
     ensureServerInList();
-    // 내 클라이언트 모드(Luna's Light) · 너굴마을 모드체커 · Fabric API 를 항상 넣어 둠
+    // 내 클라이언트 모드(Luna's Light) · Fabric API 를 항상 넣어 둠
     await prepareBuiltinMods();
 
     const s = getSettings();
@@ -1893,13 +1893,12 @@ ipcMain.handle("neogul:install-all", async () => {
 });
 
 
-// ─── 내 클라이언트 모드(Luna's Light) · 너굴마을 모드체커 · Fabric API 자동 주입 ───────
+// ─── 내 클라이언트 모드(Luna's Light) · Fabric API 자동 주입 ───────
 // 노바 클라이언트와 같은 방식: 실행할 때마다 mods 폴더에 넣고, 서명한 실행 토큰을 같이 써서
 // 모드가 "정식 런처로 켰다"는 걸 알게 함(토큰이 없으면 모드가 기능을 스스로 끔).
 // ⚠️ 비밀값은 Luna's Light(Nova-Mod) 쪽 값과 같아야 함.
 const LAUNCH_SECRET = "677ba6308331ba9b0fb83bfdb6e3a52f81e890f38343001aa9ced084e04c751e";
 const BUILTIN_PREFIX = "builtin-mod-";
-const MODCHECKER_URL = "https://mcng.kr/mods/ng-modchecker.zip";
 const MODCHECKER_NAME = "builtin-ngmodchecker.jar";
 const FABRIC_API_ID = "P7dR8mSH";
 const SETUP_PREFS = path.join(ROOT, "first-setup.json");
@@ -1956,32 +1955,16 @@ async function updateBuiltinModFromRelease() {
   }
 }
 
-async function ensureModChecker() {
-  const dest = path.join(DIRS.mod, MODCHECKER_NAME);
-  const meta = store.get("modcheckerMeta") || {};
-  // 실행할 때마다 바뀌었는지 확인 (ETag 라 안 바뀌었으면 받지 않음. 못 받으면 있는 걸 씀)
-  // 서버가 모드체커를 올리면 바로 따라가야 스킬 키 같은 기능이 안 막힘
-  try {
-    const headers = { "User-Agent": USER_AGENT };
-    if (fs.existsSync(dest) && meta.etag) headers["If-None-Match"] = meta.etag;
-    const res = await fetch(MODCHECKER_URL, { headers, timeout: 8000 });
-    if (res.status === 304) { store.set("modcheckerMeta", { ...meta, checkedAt: Date.now() }); return; }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = await res.buffer();
-    const zip = new AdmZip(buf);
-    let jar = null;
-    if (zip.getEntry("fabric.mod.json")) jar = buf; // 이름만 zip 이고 사실 jar
-    else jar = zip.getEntries().find((e) => !e.isDirectory && e.entryName.toLowerCase().endsWith(".jar"))?.getData() || null;
-    if (!jar) throw new Error("모드 jar 를 찾지 못했어요");
-    await fsp.writeFile(dest + ".part", jar);
-    await fsp.rename(dest + ".part", dest);
-    store.set("modcheckerMeta", { etag: res.headers.get("etag") || null, checkedAt: Date.now() });
-    setInstalledMeta(MODCHECKER_NAME, { title: "너굴마을 모드체커 (자동)", neogul: "modchecker" });
-    log("[모드체커] 새로 받음");
-  } catch (err) {
-    log("[모드체커] 받기 실패: " + (err?.message || err));
-    if (!fs.existsSync(dest)) send("toast", { msg: "너굴마을 모드체커를 받지 못했어요. 접속이 막힐 수 있어요.", kind: "err" });
+// 너굴마을 모드체커는 서버에서 없어진 모드. 남아 있으면 NG-SkillKeydown 이 "대기"해서 직접 지정 스킬 키가 막히므로
+// 예전 버전이 넣어 둔 파일을 지움 (사람이 직접 넣은 ng-modchecker-*.jar 도 같이)
+async function removeModChecker() {
+  for (const f of await modFiles()) {
+    if (plain(f) === MODCHECKER_NAME || /^ng-modchecker.*\.jar$/i.test(plain(f))) {
+      await fsp.rm(path.join(DIRS.mod, f), { force: true });
+      log("[모드체커] 없어진 모드라 지움: " + f);
+    }
   }
+  store.delete("modcheckerMeta");
 }
 
 // 돌려주는 값: 모드 처음 설정을 이미 했는지 (안 했으면 바로 접속하지 않음)
@@ -1999,7 +1982,7 @@ async function prepareBuiltinMods() {
   } else {
     log("[내장 모드] " + SERVER.mcVersion + " 용 jar 가 없어서 건너뜀");
   }
-  await ensureModChecker();
+  await removeModChecker();
   // Luna's Light 는 Fabric API 가 있어야 켜짐
   if (!files.some((f) => /^fabric-api-.*\.jar$/i.test(f)) && !installedProjectKeys().has(FABRIC_API_ID)) {
     try { await installProject(FABRIC_API_ID, "mod"); } catch (err) { log("[Fabric API] 설치 실패: " + (err?.message || err)); }
