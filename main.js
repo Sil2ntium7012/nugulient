@@ -1947,7 +1947,7 @@ async function updateBuiltinModFromRelease() {
     if (!new AdmZip(buf).getEntry("fabric.mod.json")) throw new Error("모드 jar 가 아니에요");
     await fsp.mkdir(dir, { recursive: true });
     await fsp.writeFile(dest + ".part", buf);
-    for (const f of fs.readdirSync(dir)) if (f.startsWith(BUILTIN_PREFIX) && f.includes(`+mc${v}.jar`) && f !== name) await fsp.rm(path.join(dir, f), { force: true });
+    for (const f of fs.readdirSync(dir)) if (f.startsWith(BUILTIN_PREFIX) && f.endsWith(`+mc${v}.jar`) && f !== name) await fsp.rm(path.join(dir, f), { force: true });
     await fsp.rename(dest + ".part", dest);
     store.set("novaModRelease", { key, etag: res.headers.get("etag") || null, at: Date.now() });
     log(`[내장 모드] 새 버전 받음: ${name} (${asset.updated_at})`);
@@ -1959,12 +1959,12 @@ async function updateBuiltinModFromRelease() {
 async function ensureModChecker() {
   const dest = path.join(DIRS.mod, MODCHECKER_NAME);
   const meta = store.get("modcheckerMeta") || {};
-  // 하루에 한 번만 새로 받는지 확인 (못 받으면 있는 걸 씀)
-  if (fs.existsSync(dest) && Date.now() - (meta.checkedAt || 0) < 24 * 3600 * 1000) return;
+  // 실행할 때마다 바뀌었는지 확인 (ETag 라 안 바뀌었으면 받지 않음. 못 받으면 있는 걸 씀)
+  // 서버가 모드체커를 올리면 바로 따라가야 스킬 키 같은 기능이 안 막힘
   try {
     const headers = { "User-Agent": USER_AGENT };
     if (fs.existsSync(dest) && meta.etag) headers["If-None-Match"] = meta.etag;
-    const res = await fetch(MODCHECKER_URL, { headers, timeout: 20000 });
+    const res = await fetch(MODCHECKER_URL, { headers, timeout: 8000 });
     if (res.status === 304) { store.set("modcheckerMeta", { ...meta, checkedAt: Date.now() }); return; }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = await res.buffer();
