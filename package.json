@@ -1,7 +1,7 @@
 {
   "name": "nugulient",
   "productName": "너굴라이언트",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "너굴마을(mcng.kr) 전용 마인크래프트 런처",
   "main": "main.js",
   "author": "망고",
