@@ -1056,13 +1056,18 @@ ipcMain.handle("neogul:list", async () => {
         wiki: m.wiki,
         installed: found.every(Boolean),
         enabled: found.every((f) => f && !/\.disabled$/i.test(f)),
+        update: neogulUpdates.some((u) => u.id === m.id),
       };
     }),
     resourcepack: { ...NEOGUL_RESOURCEPACK, installed: rpInstalled },
   };
 });
 
-ipcMain.handle("neogul:install", (_e, id) => installNeogulMod(id));
+ipcMain.handle("neogul:install", async (_e, id) => {
+  const r = await installNeogulMod(id);
+  checkNeogulUpdates().catch(() => {});
+  return r;
+});
 async function installNeogulMod(id) {
   const mod = NEOGUL_MODS.find((m) => m.id === id);
   if (!mod) return { ok: false, error: "모르는 모드예요." };
@@ -1113,6 +1118,91 @@ ipcMain.handle("neogul:remove", async (_e, id) => {
     }
   }
   return { ok: true };
+});
+
+// ─── 너굴마을 전용 모드 업데이트 확인 ─────────────────────────────────────────
+// 위키에 올라온 파일(주소는 refreshWikiInfo 가 따라감)과 mods 폴더에 깔린 파일 이름을 비교.
+//   jar 주소  → 주소의 파일 이름이 깔려 있지 않으면 새 버전
+//   zip 주소  → ETag 가 바뀌었을 때만 받아서 안의 jar 이름을 적어 두고, 그 이름이 깔려 있지 않으면 새 버전
+let neogulUpdates = []; // [{ id, name, files: [새 파일 이름] }]
+let neogulCheckBusy = false;
+async function zipJarNames(dl, pats) {
+  const cache = store.get("neogulZipCache") || {};
+  const c = cache[dl.url];
+  let etag = null;
+  try {
+    const head = await fetch(dl.url, { method: "HEAD", headers: { "User-Agent": USER_AGENT }, timeout: 8000 });
+    if (head.ok) etag = head.headers.get("etag") || head.headers.get("last-modified") || head.headers.get("content-length");
+  } catch (_) {}
+  if (c && (!etag || c.etag === etag)) return c.jars; // 못 물어봤으면 전에 본 걸로
+  const zip = new AdmZip(await downloadBuffer(dl.url));
+  const jars = zip.getEntries().filter((e) => !e.isDirectory).map((e) => path.basename(e.entryName)).filter((b) => /\.jar$/i.test(b) && pats.some((rx) => rx.test(b)));
+  cache[dl.url] = { etag, jars, at: Date.now() };
+  store.set("neogulZipCache", cache);
+  return jars;
+}
+async function checkNeogulUpdates() {
+  if (neogulCheckBusy) return neogulUpdates;
+  neogulCheckBusy = true;
+  try {
+    const files = (await modFiles()).map(plain);
+    const out = [];
+    for (const m of NEOGUL_MODS) {
+      const pats = re(m.patterns);
+      const shared = re(m.shared);
+      if (!pats.every((rx) => files.some((f) => rx.test(f)))) continue; // 안 깐 모드는 알리지 않음
+      const want = [];
+      for (const dl of m.downloads) {
+        try {
+          if (dl.kind === "jar") {
+            const name = safeName(decodeURIComponent(new URL(dl.url).pathname.split("/").pop()));
+            if (shared.some((rx) => rx.test(name))) continue; // 같이 쓰는 Fabric API 는 제외
+            want.push(name);
+          } else {
+            want.push(...(await zipJarNames(dl, pats)).map(safeName));
+          }
+        } catch (err) {
+          log(`[너굴 모드] 업데이트 확인 실패 ${m.name}: ` + (err?.message || err));
+        }
+      }
+      const missing = want.filter((n) => !files.includes(n));
+      if (missing.length) out.push({ id: m.id, name: m.name, files: missing });
+    }
+    const before = neogulUpdates.map((u) => u.id + ":" + u.files.join(",")).join("|");
+    neogulUpdates = out;
+    const after = out.map((u) => u.id + ":" + u.files.join(",")).join("|");
+    if (before !== after) {
+      if (out.length) log("[너굴 모드] 업데이트 있음: " + out.map((u) => `${u.name} → ${u.files.join(", ")}`).join(" / "));
+      send("neogul:updates", out);
+    }
+    return out;
+  } finally {
+    neogulCheckBusy = false;
+  }
+}
+ipcMain.handle("neogul:updates", () => neogulUpdates);
+ipcMain.handle("neogul:check-updates", () => checkNeogulUpdates());
+ipcMain.handle("neogul:update-all", async () => {
+  if (gameProcess) return { ok: false, error: "게임을 끈 뒤에 업데이트해 주세요." };
+  const failed = [];
+  let count = 0;
+  for (const u of [...neogulUpdates]) {
+    const mod = NEOGUL_MODS.find((m) => m.id === u.id);
+    const pats = re(mod.patterns);
+    // 꺼 둔 모드는 업데이트한 뒤에도 꺼 둠
+    const wasOff = (await modFiles()).some((f) => /\.disabled$/i.test(f) && pats.some((rx) => rx.test(plain(f))));
+    const r = await installNeogulMod(u.id);
+    if (!r.ok) { failed.push(u.name); continue; }
+    count++;
+    if (wasOff) {
+      for (const f of await modFiles()) {
+        if (!/\.disabled$/i.test(f) && pats.some((rx) => rx.test(f))) await fsp.rename(path.join(DIRS.mod, f), path.join(DIRS.mod, f + ".disabled")).catch(() => {});
+      }
+    }
+  }
+  await checkNeogulUpdates();
+  send("neogul:updated", {});
+  return { ok: true, updated: count, failed };
 });
 
 ipcMain.handle("neogul:install-resourcepack", async () => {
@@ -1843,6 +1933,7 @@ ipcMain.handle("images:get", () => {
 
 async function refreshSiteInfo() {
   await Promise.allSettled([refreshRankings(), refreshWikiInfo(), refreshImages()]);
+  await checkNeogulUpdates().catch(() => {});
 }
 function startSiteInfoSchedule() {
   refreshSiteInfo();

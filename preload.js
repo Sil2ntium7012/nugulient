@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld("nugul", {
     remove: (id) => invoke("neogul:remove", id),
     installResourcePack: () => invoke("neogul:install-resourcepack"),
     installAll: () => invoke("neogul:install-all"),
+    updates: () => invoke("neogul:updates"),
+    checkUpdates: () => invoke("neogul:check-updates"),
+    updateAll: () => invoke("neogul:update-all"),
+    onUpdates: on("neogul:updates"),
   },
 
   modrinth: {

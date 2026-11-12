@@ -277,7 +277,7 @@ async function renderNeogul() {
       <div class="ng-top">
         <div class="ng-icon logo">${nugulIcon()}<span class="ng-badge">${NG_ICONS[m.id] || NG_ICONS.rp}</span></div>
         <div class="grow">
-          <h3>${esc(m.name)} ${m.installed ? `<span class="state ${m.enabled ? "on" : "off"}">${m.enabled ? "설치됨" : "꺼짐"}</span>` : ""}</h3>
+          <h3>${esc(m.name)} ${m.installed ? `<span class="state ${m.enabled ? "on" : "off"}">${m.enabled ? "설치됨" : "꺼짐"}</span>` : ""}${m.update ? ' <span class="state upd">새 버전</span>' : ""}</h3>
           <p class="sub">${esc(m.sub)}</p>
         </div>
       </div>
@@ -285,7 +285,7 @@ async function renderNeogul() {
       <div class="ng-actions">
         ${
           m.installed
-            ? `<button class="btn ghost sm" data-ng-install="${m.id}">다시 받기</button><button class="btn danger sm" data-ng-remove="${m.id}">삭제</button>`
+            ? `<button class="btn ${m.update ? "primary" : "ghost"} sm" data-ng-install="${m.id}">${m.update ? "업데이트" : "다시 받기"}</button><button class="btn danger sm" data-ng-remove="${m.id}">삭제</button>`
             : `<button class="btn primary sm" data-ng-install="${m.id}">설치</button>`
         }
         <span class="grow"></span>
@@ -1300,6 +1300,23 @@ api.rank.onData((r) => {
   RANK = r;
   if ($("#page-ranking").classList.contains("active")) renderRanking();
 });
+// ─── 너굴마을 모드 업데이트 알림 (새 버전이 위키에 올라오면 버튼 하나로) ─────────
+let ngUpdToast = null;
+async function updateNeogulAll() {
+  toast("너굴마을 모드 업데이트 받는 중…");
+  const r = await api.neogulMods.updateAll();
+  if (!r.ok) return toast(r.error || "업데이트하지 못했어요.", "err");
+  if (r.failed?.length) toast(`업데이트 실패: ${r.failed.join(", ")}`, "err");
+  else toast(`너굴마을 모드 ${r.updated}개를 업데이트했어요. 다음 PLAY 부터 적용돼요.`, "ok");
+}
+function showNeogulUpdates(list) {
+  if (ngUpdToast) { ngUpdToast.remove(); ngUpdToast = null; }
+  if (list?.length) ngUpdToast = toastAction(`너굴마을 모드 새 버전: ${list.map((u) => u.name).join(", ")}`, "한 번에 업데이트", updateNeogulAll);
+  if ($("#page-mods").classList.contains("active") && typeof renderNeogul === "function") renderNeogul();
+}
+api.neogulMods.onUpdates(showNeogulUpdates);
+api.neogulMods.updates().then((l) => l?.length && showNeogulUpdates(l)).catch(() => {});
+
 api.onNeogulUpdated(() => {
   if ($("#page-mods").classList.contains("active") && typeof renderNeogul === "function") renderNeogul();
 });

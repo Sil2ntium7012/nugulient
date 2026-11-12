@@ -255,6 +255,7 @@ img { -webkit-user-drag: none; }
 .state { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
 .state.on { color: var(--leaf); background: rgba(140,207,106,.12); }
 .state.off { color: var(--text-2); background: var(--bg-3); }
+.state.upd { color: var(--accent-ink); background: var(--accent); }
 
 /* ── 검색 ── */
 .search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
