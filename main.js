@@ -249,6 +249,7 @@ if (!gotLock) {
     startSiteInfoSchedule();
   });
   app.on("window-all-closed", () => app.quit());
+  app.on("will-quit", () => { try { stopNowPlayingBridge(); } catch (_) {} });
 }
 
 function send(channel, payload) {
@@ -835,6 +836,7 @@ ipcMain.handle("launch:start", async () => {
     launcher.on("close", (code) => {
       log("게임 종료, 코드 " + code);
       gameProcess = null;
+      stopNowPlayingBridge();
       if (pendingAutoInstall && updateState.status === "ready") {
         pendingAutoInstall = false;
         autoInstallSoon(updateState.version);
@@ -849,6 +851,7 @@ ipcMain.handle("launch:start", async () => {
 
     progress("game", 0, "게임 파일 확인 중");
     gameProcess = await launcher.launch(opts);
+    startNowPlayingBridge(GAME_DIR); // 듣고 있는 노래를 게임 폴더에 적어 줌 (모드가 읽음)
     if (!gameProcess) throw new Error("게임을 실행하지 못했어요. 로그를 확인해 주세요.");
     progress("done", 100, "너굴마을로 접속 중");
     send("launch:started", {});
@@ -2014,6 +2017,473 @@ ipcMain.handle("neogul:install-all", async () => {
   return { ok: true, installed: count, failed };
 });
 
+
+const { spawn } = require("child_process");
+const lunaTwinPath = (p) => path.join(path.dirname(p), path.basename(p).replace(/^\.nova-/, ".luna-"));
+// ↓ Nova Client main.js 의 "듣고 있는 노래" 브리지를 그대로 옮김 (영상 PIP 만 뺌)
+// ----------------------------------------------------------------------------
+// 49-74차(모드 4-5 "듣고 있는 노래"): 지금 재생 중인 곡을 게임 폴더에 적어줌
+// ----------------------------------------------------------------------------
+// 모드(자바)에는 "무슨 노래가 나오나"를 물어볼 길이 아예 없음 - 그건 윈도우가 갖고 있는 정보임
+// (윈도우 미디어 세션: Spotify / 크롬·엣지의 유튜브 / 윈도우 미디어 플레이어 등이 여기에 곡을
+// 올림. 볼륨 조절기 위에 곡 제목이 뜨는 그 정보임). 네이티브 모듈을 모드에 동봉하는 건 40개
+// 버전에 얹기엔 너무 무거워서, 이미 윈도우 프로그램인 런처가 대신 물어보고 게임 폴더에
+// .nova-now-playing.json 한 줄을 남김. 모드는 그 파일만 읽음(NovaNowPlaying.java 주석 참고).
+//
+// 왜 powershell을 "계속 띄워두는가": 2초마다 powershell.exe를 새로 띄우면 실행 비용(프로세스
+// 생성 + .NET 로딩)이 곡 정보 한 줄 값어치를 훨씬 넘김. 그래서 한 번만 띄워서 그 안에서 돌게
+// 하고, 런처는 그 출력을 읽어서 파일로 옮기기만 함. 게임이 꺼지면 같이 죽임.
+//
+// 실패해도 게임에는 아무 영향이 없음 - 파일이 안 생기고, 모드는 아무것도 표시하지 않음
+// (없는 걸 지어내지 않기 위해 모드 쪽에서도 파일이 없으면 그냥 안 그림).
+let nowPlayingProc = null;
+let nowPlayingTarget = null;
+let nowPlayingWroteAt = 0;
+
+// 49-181차(사용자: "노래 어플 우선, 같이 켜져 있으면 소리 큰 거"): 앱(프로세스)별 지금 나는 소리 크기.
+// 윈도우 볼륨 믹서가 앱마다 보여 주는 막대와 같은 값(IAudioMeterInformation 최고치 × 앱 볼륨, 음소거면 0)을
+// n번(ms 간격) 재서 가장 큰 값을 낸다 - 곡 사이 잠깐 조용한 순간에 0으로 튀지 않게.
+const NOVA_AUDIO_CS = String.raw`using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Threading;
+public static class NovaAudio {
+  [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorCo { }
+  [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDeviceEnumerator {
+    [PreserveSig] int EnumAudioEndpoints(int flow, int mask, out IntPtr devices);
+    [PreserveSig] int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice dev);
+  }
+  [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDevice {
+    [PreserveSig] int Activate(ref Guid iid, int ctx, IntPtr prm, [MarshalAs(UnmanagedType.IUnknown)] out object obj);
+  }
+  [ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IAudioSessionManager2 {
+    [PreserveSig] int GetAudioSessionControl(IntPtr g, int flags, out IntPtr ctl);
+    [PreserveSig] int GetSimpleAudioVolume(IntPtr g, int flags, out IntPtr vol);
+    [PreserveSig] int GetSessionEnumerator(out IAudioSessionEnumerator e);
+  }
+  [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IAudioSessionEnumerator {
+    [PreserveSig] int GetCount(out int n);
+    [PreserveSig] int GetSession(int i, [MarshalAs(UnmanagedType.IUnknown)] out object s);
+  }
+  [ComImport, Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IAudioSessionControl2 {
+    [PreserveSig] int GetState(out int state);
+    [PreserveSig] int GetDisplayName(out IntPtr v);
+    [PreserveSig] int SetDisplayName(IntPtr v, IntPtr c);
+    [PreserveSig] int GetIconPath(out IntPtr v);
+    [PreserveSig] int SetIconPath(IntPtr v, IntPtr c);
+    [PreserveSig] int GetGroupingParam(out Guid g);
+    [PreserveSig] int SetGroupingParam(IntPtr g, IntPtr c);
+    [PreserveSig] int RegisterAudioSessionNotification(IntPtr n);
+    [PreserveSig] int UnregisterAudioSessionNotification(IntPtr n);
+    [PreserveSig] int GetSessionIdentifier(out IntPtr v);
+    [PreserveSig] int GetSessionInstanceIdentifier(out IntPtr v);
+    [PreserveSig] int GetProcessId(out uint pid);
+  }
+  [ComImport, Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IAudioMeterInformation {
+    [PreserveSig] int GetPeakValue(out float peak);
+  }
+  [ComImport, Guid("87CE5498-68D6-44E5-9215-6DA47EF883D8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface ISimpleAudioVolume {
+    [PreserveSig] int SetMasterVolume(float v, IntPtr c);
+    [PreserveSig] int GetMasterVolume(out float v);
+    [PreserveSig] int SetMute(int m, IntPtr c);
+    [PreserveSig] int GetMute(out int m);
+  }
+  class Entry { public string Name; public IAudioMeterInformation Meter; public ISimpleAudioVolume Vol; }
+  static List<Entry> Open() {
+    var list = new List<Entry>();
+    var en = (IMMDeviceEnumerator)(new MMDeviceEnumeratorCo());
+    IMMDevice dev;
+    if (en.GetDefaultAudioEndpoint(0, 1, out dev) != 0 || dev == null) return list;
+    Guid iid = typeof(IAudioSessionManager2).GUID;
+    object o;
+    if (dev.Activate(ref iid, 23, IntPtr.Zero, out o) != 0 || o == null) return list;
+    var mgr = (IAudioSessionManager2)o;
+    IAudioSessionEnumerator se;
+    if (mgr.GetSessionEnumerator(out se) != 0 || se == null) return list;
+    int count;
+    se.GetCount(out count);
+    for (int i = 0; i < count; i++) {
+      try {
+        object so;
+        if (se.GetSession(i, out so) != 0 || so == null) continue;
+        var c2 = so as IAudioSessionControl2;
+        var meter = so as IAudioMeterInformation;
+        if (c2 == null || meter == null) continue;
+        uint pid;
+        if (c2.GetProcessId(out pid) != 0 || pid == 0) continue;
+        string name;
+        try { name = Process.GetProcessById((int)pid).ProcessName.ToLowerInvariant(); } catch { continue; }
+        var e = new Entry();
+        e.Name = name; e.Meter = meter; e.Vol = so as ISimpleAudioVolume;
+        list.Add(e);
+      } catch { }
+    }
+    return list;
+  }
+  public static string[] Sample(int n, int ms) {
+    var best = new Dictionary<string, float>();
+    List<Entry> entries;
+    try { entries = Open(); } catch { entries = new List<Entry>(); }
+    for (int i = 0; i < n; i++) {
+      foreach (var e in entries) {
+        float p = 0f, v = 1f; int m = 0;
+        try { e.Meter.GetPeakValue(out p); } catch { }
+        if (e.Vol != null) { try { e.Vol.GetMasterVolume(out v); e.Vol.GetMute(out m); } catch { } }
+        float eff = m != 0 ? 0f : p * v;
+        float cur;
+        if (!best.TryGetValue(e.Name, out cur) || eff > cur) best[e.Name] = eff;
+      }
+      if (i < n - 1) Thread.Sleep(ms);
+    }
+    var outList = new List<string>();
+    foreach (var kv in best) outList.Add(kv.Key + "\t" + kv.Value.ToString("0.0000", CultureInfo.InvariantCulture));
+    return outList.ToArray();
+  }
+}`;
+
+// Windows PowerShell 5.1(=powershell.exe) 전용. WinRT 호출에 .NET Framework의
+// System.WindowsRuntimeSystemExtensions가 필요해서 pwsh(PowerShell 7)로는 안 됨.
+const NOW_PLAYING_PS1 = [
+  "$ErrorActionPreference = 'Stop'",
+  // 한글 곡 제목이 깨지지 않게 - 안 맞추면 콘솔 코드페이지(949)로 나가고 Node는 UTF-8로 읽음
+  "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+  "try {",
+  "  [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime] | Out-Null",
+  "  [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties,Windows.Media.Control,ContentType=WindowsRuntime] | Out-Null",
+  "  [Windows.Foundation.IAsyncOperation`1,Windows.Foundation,ContentType=WindowsRuntime] | Out-Null",
+  "} catch {",
+  "  [Console]::Error.WriteLine('nova: no media api')",
+  "  exit 1",
+  "}",
+  // 49-77차: 이 어셈블리를 안 올리면 [System.WindowsRuntimeSystemExtensions] 형식을 못 찾는다(launcher.log에서 확인)
+  // 49-118차(사용자 로그 실측: "System.WindowsRuntimeSystemExtensions 형식을 찾을 수 없습니다"): 이름만으로
+  //  Add-Type이 이 어셈블리를 못 잡는 PC가 있다 → 이름으로 먼저 시도하고, 안 되면 GAC에서 dll을 직접 찾아 올린다.
+  "Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue",
+  "if (-not ([System.Management.Automation.PSTypeName]'System.WindowsRuntimeSystemExtensions').Type) {",
+  "  try {",
+  "    $wrDll = Get-ChildItem -Path (Join-Path $env:windir 'Microsoft.NET\\assembly\\GAC_MSIL\\System.Runtime.WindowsRuntime') -Recurse -Filter 'System.Runtime.WindowsRuntime.dll' -ErrorAction SilentlyContinue | Select-Object -First 1",
+  "    if ($wrDll) { Add-Type -Path $wrDll.FullName }",
+  "  } catch { }",
+  "}",
+  "if (-not ([System.Management.Automation.PSTypeName]'System.WindowsRuntimeSystemExtensions').Type) {",
+  "  [Console]::Error.WriteLine('nova: winrt extensions missing')",
+  "  exit 1",
+  "}",
+  // 49-177차(모드 "플랫폼 색"): 크롬 안의 유튜브/SOOP 같은 건 미디어 세션만으론 어느 사이트인지 모른다 -
+  // 보이는 창 제목(탭 제목 + " - YouTube" 등)을 같이 넘겨서 런처가 플랫폼을 고른다. 한 번만 컴파일해 두고 계속 씀.
+  "$novaWinSrc = @'",
+  "using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;",
+  "public static class NovaWin {",
+  "  public delegate bool EnumProc(IntPtr h, IntPtr l);",
+  "  [DllImport(\"user32.dll\")] static extern bool EnumWindows(EnumProc cb, IntPtr l);",
+  "  [DllImport(\"user32.dll\")] static extern bool IsWindowVisible(IntPtr h);",
+  "  [DllImport(\"user32.dll\", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);",
+  "  public static string[] Titles() {",
+  "    var list = new List<string>();",
+  "    EnumWindows(new EnumProc(delegate (IntPtr h, IntPtr l) {",
+  "      if (IsWindowVisible(h)) { var sb = new StringBuilder(512); if (GetWindowText(h, sb, 512) > 0) list.Add(sb.ToString()); }",
+  "      return true;",
+  "    }), IntPtr.Zero);",
+  "    return list.ToArray();",
+  "  }",
+  "}",
+  "'@",
+  "try { Add-Type -TypeDefinition $novaWinSrc -ErrorAction Stop } catch { }",
+  // 49-181차: 앱별 소리 크기 측정기(실패하면 소리 크기 없이 재생 중인지만 보고 고른다)
+  "$novaAudioSrc = @'",
+  ...NOVA_AUDIO_CS.split("\n"),
+  "'@",
+  "$novaAudioOk = $false",
+  "try { Add-Type -TypeDefinition $novaAudioSrc -ErrorAction Stop; $novaAudioOk = $true } catch { [Console]::Error.WriteLine('nova: audio meter unavailable ' + $_.Exception.Message) }",
+  "$asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {",
+  "  $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'",
+  "})[0]",
+  "function Await($op, $type) {",
+  "  $t = $asTaskGeneric.MakeGenericMethod($type).Invoke($null, @($op))",
+  "  $t.Wait(-1) | Out-Null",
+  "  $t.Result",
+  "}",
+  "try {",
+  "  $mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])",
+  "} catch {",
+  "  [Console]::Error.WriteLine('nova: session manager failed')",
+  "  exit 1",
+  "}",
+  // 49-181차: 지금 세션 하나만이 아니라 미디어 세션 전부(앱, 제목, 재생 중인지)와 앱별 소리 크기를 같이 보낸다.
+  // 무엇을 띄울지는 런처(pickNowPlaying)가 고른다: 노래 앱 우선, 같은 급끼리는 소리 큰 쪽.
+  "while ($true) {",
+  "  $list = @()",
+  "  $keys = @()",
+  "  try {",
+  "    $curId = ''",
+  "    $cur = $mgr.GetCurrentSession()",
+  "    if ($cur -ne $null) { $curId = [string]$cur.SourceAppUserModelId }",
+  "    foreach ($s in $mgr.GetSessions()) {",
+  "      try {",
+  "        $t = ''; $a = ''; $p = $false",
+  "        $props = Await ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])",
+  "        if ($props -ne $null) { $t = [string]$props.Title; $a = [string]$props.Artist }",
+  "        $info = $s.GetPlaybackInfo()",
+  "        if ($info -ne $null) { $p = ($info.PlaybackStatus.ToString() -eq 'Playing') }",
+  "        $id = [string]$s.SourceAppUserModelId",
+  // 11-08(모드 49-589 "노래 시간 게이지"): 재생 위치 · 곡 길이 · 위치를 잰 시각(앱이 가끔만 갱신하므로 LastUpdatedTime 그대로)
+  "        $pos = 0; $dur = 0; $pts = 0",
+  "        try { $tl = $s.GetTimelineProperties(); if ($tl -ne $null) { $pos = [int64]$tl.Position.TotalMilliseconds; $dur = [int64]($tl.EndTime.TotalMilliseconds - $tl.StartTime.TotalMilliseconds); $pts = [int64]$tl.LastUpdatedTime.ToUnixTimeMilliseconds() } } catch { }",
+  "        $list += New-Object psobject -Property @{ title = $t; artist = $a; playing = $p; app = $id; cur = ($id -eq $curId); pos = $pos; dur = $dur; posTs = $pts }",
+  "        if ($t.Length -gt 0) { $keys += $t.Substring(0, [Math]::Min(12, $t.Length)) }",
+  "      } catch { }",
+  "    }",
+  "  } catch { }",
+  "  $wins = @()",
+  "  try {",
+  "    foreach ($w in [NovaWin]::Titles()) {",
+  "      $hit = $w -match 'YouTube|SOOP|sooplive|Spotify|Melon|Genie|Bugs|FLO|VIBE|SoundCloud|Apple Music'",
+  "      if (-not $hit) { foreach ($k in $keys) { if ($w.IndexOf($k, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $hit = $true; break } } }",
+  "      if ($hit) { $wins += $w }",
+  "      if ($wins.Count -ge 16) { break }",
+  "    }",
+  "  } catch { }",
+  "  $levels = @()",
+  "  if ($novaAudioOk) { try { $levels = @([NovaAudio]::Sample(8, 200)) } catch { Start-Sleep -Milliseconds 1600 } } else { Start-Sleep -Milliseconds 1600 }",
+  "  $obj = New-Object psobject -Property @{ sessions = @($list); wins = @($wins); levels = @($levels); meter = $novaAudioOk }",
+  "  [Console]::Out.WriteLine((ConvertTo-Json $obj -Compress -Depth 4))",
+  "  [Console]::Out.Flush()",
+  "  Start-Sleep -Milliseconds 400",
+  "}",
+].join("\r\n");
+
+// 49-177차(모드 "플랫폼 색"): 어느 플랫폼에서 나오는 곡인지 추정. 앱(Spotify/멜론 PC 앱)이면 앱 이름으로,
+// 브라우저면 곡 제목이 들어간 창 제목의 끝("- YouTube Music", "- YouTube", "SOOP")으로. 모르면 빈 문자열(색 없음).
+let lastNowPlayingTitle = "";
+function nowPlayingPlatform(p) {
+  const app = String((p && p.app) || "").toLowerCase();
+  if (app.includes("spotify")) return "spotify";
+  if (app.includes("melon") || app.includes("iloen")) return "melon";
+  if (app.includes("music.youtube") || app.includes("youtube music")) return "ytmusic";
+  const wins = Array.isArray(p && p.wins) ? p.wins.map(String) : (p && p.wins ? [String(p.wins)] : []);
+  const key = String((p && p.title) || "").slice(0, 12).toLowerCase();
+  // 곡 제목이 들어간 창을 먼저 본다(다른 탭의 유튜브 창과 헷갈리지 않게)
+  const ordered = wins.slice().sort((a, b) => (key && b.toLowerCase().includes(key) ? 1 : 0) - (key && a.toLowerCase().includes(key) ? 1 : 0));
+  for (const w of ordered) {
+    const s = w.toLowerCase();
+    if (s.includes("youtube music")) return "ytmusic";
+    if (/\bsoop\b|sooplive/.test(s)) return "soop";
+    if (s.includes("youtube")) return "youtube";
+    if (s.includes("melon") || w.includes("멜론")) return "melon";
+    if (s.includes("spotify")) return "spotify";
+  }
+  return "";
+}
+
+// 49-181차(사용자: "무조건 노래 어플 우선 + 소리 큰 거. 유튜브/숲/멜론이 켜져 있으면 멜론, 멜론이 멈췄거나 소리가
+// 꺼져 있으면 유튜브, 유튜브 뮤직과 멜론이 같이 켜져 있으면 소리 큰 거"):
+//  1) 재생 중이고 실제로 소리가 나는(앱 볼륨 믹서 막대가 움직이는) 노래 앱 중 가장 큰 것
+//  2) 없으면 재생 중이고 소리가 나는 나머지(유튜브, SOOP 등) 중 가장 큰 것
+//  3) 소리 크기를 못 재는 PC면 재생 중인 것(노래 앱 먼저), 그것도 없으면 윈도우가 "지금 세션"이라고 하는 것
+// 두 개가 비슷한 크기로 번갈아 커지며 깜빡이지 않게, 지금 띄운 것보다 25% 넘게 클 때만 바꾼다.
+const NP_MUSIC = new Set(["melon", "spotify", "ytmusic"]);
+const NP_MUSIC_RE = /melon|멜론|iloen|spotify|youtube music|genie|지니|bugs|벅스|\bflo\b|dreamus|vibe|soundcloud|apple ?music|applemusic|itunes|deezer|tidal/i;
+const NP_ALIASES = { "308046b0af4a39cb": "firefox", msedge: "msedge", chrome: "chrome", whale: "whale" };
+let npChosenKey = "";
+
+function npAppName(app) {
+  let a = String(app || "").toLowerCase();
+  a = a.split(/[\\/!]/).pop() || a;
+  a = a.replace(/\.exe$/, "");
+  return NP_ALIASES[a] || a;
+}
+
+function npLevelFor(app, levels) {
+  if (!levels) return -1;
+  const a = npAppName(app);
+  if (!a) return -1;
+  if (levels.has(a)) return levels.get(a);
+  for (const [name, v] of levels) {
+    if (name.length >= 4 && a.length >= 4 && (a.includes(name) || name.includes(a))) return v;
+  }
+  return -1;   // 이 앱의 소리 세션을 못 찾음(모름)
+}
+
+function npIsMusic(s) {
+  if (NP_MUSIC.has(s.platform)) return true;
+  if (NP_MUSIC_RE.test(String(s.app || ""))) return true;
+  return false;
+}
+
+function pickNowPlaying(parsed) {
+  const raw = Array.isArray(parsed.sessions) ? parsed.sessions : (parsed.sessions ? [parsed.sessions] : []);
+  const wins = Array.isArray(parsed.wins) ? parsed.wins.map(String) : (parsed.wins ? [String(parsed.wins)] : []);
+  let levels = null;
+  if (parsed.meter) {
+    levels = new Map();
+    const arr = Array.isArray(parsed.levels) ? parsed.levels : (parsed.levels ? [parsed.levels] : []);
+    for (const line of arr) {
+      const [name, v] = String(line).split("\t");
+      const n = Number(v);
+      if (name && Number.isFinite(n)) levels.set(name.toLowerCase(), Math.max(levels.get(name.toLowerCase()) || 0, n));
+    }
+  }
+  const list = raw.filter((x) => x && (x.title || x.artist)).map((x) => {
+    const key = String(x.title || "").slice(0, 12).toLowerCase();
+    // 이 세션의 곡 제목이 들어간 창만 먼저 본다(없으면 사이트 창 전부) - 다른 탭과 헷갈리지 않게
+    const mine = key ? wins.filter((w) => w.toLowerCase().includes(key)) : [];
+    const s = { title: String(x.title || ""), artist: String(x.artist || ""), playing: !!x.playing, app: String(x.app || ""), cur: !!x.cur };
+    // 11-08: 재생 위치(ms) · 곡 길이(ms) · 위치를 잰 시각(epoch ms) - 모르면 0
+    const num = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : 0);
+    s.pos = num(x.pos);
+    s.dur = num(x.dur);
+    s.posTs = num(x.posTs);
+    s.platform = nowPlayingPlatform({ app: s.app, title: s.title, wins: mine.length ? mine : wins });
+    s.soopWin = mine.some((w) => /\bsoop\b|sooplive|아프리카tv|afreecatv/i.test(w));
+    s.music = npIsMusic(s);
+    const lv = npLevelFor(s.app, levels);
+    const id = s.app + "|" + s.title;
+    // 1.6초 동안 잰 최고치 그대로 쓴다(멈추거나 음소거하면 바로 0 - 다음 차례에 바로 넘어가게)
+    s.level = lv >= 0 ? lv : -1;
+    s.id = id;
+    return s;
+  });
+  // 49-184차(사용자: "숲은 노래에서 빼줘 아예 - 숲이 계속 인식돼"): SOOP 방송은 노래가 아니라 후보에서 뺀다.
+  // 앱 이름이나 이 세션의 창 제목에 SOOP이 보이면 뺀다(플랫폼 판정이 다른 걸로 나와도).
+  for (let i = list.length - 1; i >= 0; i--) {
+    const s = list[i];
+    if (s.platform === "soop" || s.soopWin || /\bsoop\b|sooplive|afreeca|아프리카/i.test(s.app)) list.splice(i, 1);
+  }
+  if (!list.length) return null;
+  const QUIET = 0.004;
+  // 소리 세션을 못 찾은 앱(-1)은 재생 중이면 소리 나는 걸로 치되, 실제로 잰 것보다는 뒤로 민다
+  const audible = (s) => s.playing && (s.level < 0 || s.level > QUIET);
+  const loudest = (arr) => arr.slice().sort((a, b) => b.level - a.level)[0];
+  let pick = null;
+  const tiers = [list.filter((s) => s.music && audible(s)), list.filter((s) => !s.music && audible(s))];
+  for (const tier of tiers) {
+    if (!tier.length) continue;
+    pick = loudest(tier);
+    // 지금 띄운 것이 같은 급에 아직 있으면, 새 후보가 25% 넘게 커야 바꾼다
+    const keep = tier.find((s) => s.id === npChosenKey);
+    if (keep && keep !== pick && !(pick.level > keep.level * 1.25 + 0.002)) pick = keep;
+    break;
+  }
+  if (!pick) {
+    const playing = list.filter((s) => s.playing);
+    pick = playing.find((s) => s.music) || playing[0] || list.find((s) => s.cur) || list[0];
+  }
+  npChosenKey = pick.id;
+  return pick;
+}
+
+function startNowPlayingBridge(runRoot) {
+  stopNowPlayingBridge();
+  if (process.platform !== "win32" || !runRoot) return;
+  let scriptPath;
+  try {
+    scriptPath = path.join(os.tmpdir(), "nugulient-now-playing.ps1");
+    // BOM을 붙여야 powershell이 한글이 섞인 곡 제목을 제대로 내보냄
+    fs.writeFileSync(scriptPath, "﻿" + NOW_PLAYING_PS1, "utf-8");
+  } catch (err) {
+    log("[노바 모드][노래] 스크립트 기록 실패: " + (err?.message || err));
+    return;
+  }
+  nowPlayingTarget = path.join(runRoot, ".nova-now-playing.json");
+  nowPlayingWroteAt = 0;
+  try {
+    nowPlayingProc = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
+      { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }
+    );
+  } catch (err) {
+    log("[노바 모드][노래] powershell 실행 실패(노래 표시만 비활성): " + (err?.message || err));
+    nowPlayingProc = null;
+    return;
+  }
+  let buf = "";
+  let last = "";
+  nowPlayingProc.stdout.on("data", (chunk) => {
+    buf += String(chunk);
+    let nl;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(line);
+      } catch (_) {
+        continue;
+      }
+      // 49-181차: 새 스크립트는 세션 전부를 보낸다 - 여기서 하나를 고른다(옛 한 줄 형식도 그대로 받음)
+      if (Array.isArray(parsed.sessions) || parsed.sessions) {
+        let chosen = null;
+        try {
+          chosen = pickNowPlaying(parsed);
+        } catch (err) {
+          log("[노바 모드][노래] 고르기 실패: " + (err?.message || err));
+        }
+        parsed = chosen
+          ? { title: chosen.title, artist: chosen.artist, playing: chosen.playing, app: chosen.app, platform: chosen.platform, pos: chosen.pos || 0, dur: chosen.dur || 0, posTs: chosen.posTs || 0 }
+          : { title: "", artist: "", playing: false, app: "", platform: "", pos: 0, dur: 0, posTs: 0 };
+      }
+      // 내용이 그대로면 파일을 다시 쓰지 않음 - 다만 모드가 "오래된 값"으로 버리지 않게
+      // 5초에 한 번은 무조건 다시 씀(모드 쪽 STALE_MS = 15초)
+      // 11-08: pos 는 매번 바뀌어 빼고 비교한다(앱이 위치를 새로 알리면 posTs 가 바뀌어 바로 다시 씀)
+      const key = JSON.stringify({ ...parsed, pos: undefined });
+      const now = Date.now();
+      if (key === last && now - nowPlayingWroteAt < 5000) continue;
+      last = key;
+      nowPlayingWroteAt = now;
+      try {
+        lastNowPlayingTitle = parsed.title || "";
+        const npBody = JSON.stringify({
+          ts: now, title: parsed.title || "", artist: parsed.artist || "", playing: !!parsed.playing,
+          source: parsed.platform != null ? parsed.platform : nowPlayingPlatform(parsed),
+          // 11-08(모드 노래 시간 게이지): 모르면 0 - 모드는 playing 이면 pos + (지금 - posTs) 로 앞으로 민다
+          pos: Number(parsed.pos) || 0, dur: Number(parsed.dur) || 0, posTs: Number(parsed.posTs) || 0,
+        });
+        fs.writeFileSync(nowPlayingTarget, npBody, "utf-8");
+        try { fs.writeFileSync(lunaTwinPath(nowPlayingTarget), npBody, "utf-8"); } catch (_) {}
+      } catch (_) {
+        // 게임 폴더가 사라졌거나(프로필 삭제) 잠긴 것 - 다음 줄에서 다시 시도
+      }
+    }
+  });
+  nowPlayingProc.stderr.on("data", (chunk) => {
+    const msg = String(chunk).trim();
+    if (msg) log("[노바 모드][노래] " + msg);
+  });
+  nowPlayingProc.on("close", () => {
+    nowPlayingProc = null;
+  });
+}
+
+// 게임이 켜져 있는 동안만 파일이 살아 있게 - 끝나면 지워서 모드가 옛 곡을 계속 띄우지 않게 함
+// (모드도 ts로 한 번 더 거르지만, 여기서 지우는 쪽이 더 정확함)
+function stopNowPlayingBridge() {
+  if (nowPlayingProc) {
+    try {
+      nowPlayingProc.kill();
+    } catch (_) {}
+    nowPlayingProc = null;
+  }
+  if (nowPlayingTarget) {
+    try {
+      fs.unlinkSync(nowPlayingTarget);
+    } catch (_) {}
+    try {
+      fs.unlinkSync(lunaTwinPath(nowPlayingTarget));
+    } catch (_) {}
+    nowPlayingTarget = null;
+  }
+}
 
 // ─── 내 클라이언트 모드(Luna's Light) · Fabric API 자동 주입 ───────
 // 노바 클라이언트와 같은 방식: 실행할 때마다 mods 폴더에 넣고, 서명한 실행 토큰을 같이 써서
