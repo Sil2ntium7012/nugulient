@@ -81,18 +81,18 @@
   async function loadKB(force) {
     if (kbLoading) return kbLoading;
     kbLoading = (async () => {
-      $("#askSub").textContent = "위키를 읽는 중이에요…";
+      $("#askSub").textContent = "위키를 읽는 중입니다…";
       const r = await api.kb.get(!!force);
       const parse = (h) => (h ? new DOMParser().parseFromString(h, "text/html") : null);
       if (!r.pages.wiki) {
-        $("#askSub").textContent = "위키를 받아오지 못했어요. 인터넷 연결을 확인하고 '위키 새로 받기'를 눌러 주세요.";
+        $("#askSub").textContent = "위키를 받아오지 못했습니다. 인터넷 연결을 확인하고 '위키 새로 받기'를 눌러 주십시오.";
         kbLoading = null;
         return null;
       }
       kb = window.NugulAsk.buildKB({ wiki: parse(r.pages.wiki), rules: parse(r.pages.rules) });
       kbInfo = r;
       const t = r.fetchedAt ? new Date(r.fetchedAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
-      $("#askSub").textContent = `너굴마을 위키·규칙 ${kb.N}개 항목에서 찾아서 답해요 · ${t} 기준${r.error ? " (새로 받기 실패, 저장된 위키 사용 중)" : ""}`;
+      $("#askSub").textContent = `너굴마을 위키·규칙 ${kb.N}개 항목에서 찾아서 답합니다 · ${t} 기준${r.error ? " (새로 받기 실패, 저장된 위키 사용 중)" : ""}`;
       kbLoading = null;
       return kb;
     })();
@@ -121,7 +121,7 @@
   }
   function relatedChips(list) {
     if (!list || !list.length) return "";
-    return `<div class="ask-rel"><span>이것도 볼까요?</span>${list.map((c) => `<button class="chip-btn" data-chunk="${c.i}">${esc(c.label)}</button>`).join("")}</div>`;
+    return `<div class="ask-rel"><span>이것도 보시겠습니까?</span>${list.map((c) => `<button class="chip-btn" data-chunk="${c.i}">${esc(c.label)}</button>`).join("")}</div>`;
   }
   function answerHtml(chunk, lines, opts = {}) {
     return `<div class="ask-ans-head"><span class="src ${chunk.src}">${chunk.src === "rules" ? "규칙" : "위키"}</span><b>${esc(chunk.label)}</b></div>
@@ -146,12 +146,12 @@
     const it = findItem(q);
     const priceCue = /(가격|시세|얼마|포인트|무역|팔면|판매)/.test(q);
     if (!wantsTop && !(it && (priceCue || q.replace(/\s/g, "").length <= it.name.length + 3))) return null;
-    if (!T) return `<div class="ask-ans-head"><span class="src live">시세</span><b>오늘 요리 시세</b></div><p class="ask-note">시세를 아직 못 받아왔어요. 계산기 탭에서 새로고침해 주세요.</p>`;
+    if (!T) return `<div class="ask-ans-head"><span class="src live">시세</span><b>오늘 요리 시세</b></div><p class="ask-note">시세를 아직 못 받아왔습니다. 계산기 탭에서 새로고침해 주십시오.</p>`;
     if (wantsTop && !it) {
       const top = NG.FOODS.map((f) => ({ f, p: NG.pointsOf(T, f.key, "none"), c: NG.changePct(T, f.key) })).sort((a, b) => b.p - a.p).slice(0, 5);
       return `<div class="ask-ans-head"><span class="src live">시세</span><b>${esc(T.date)} 요리 시세 TOP 5</b></div>
         <ul class="ask-lines">${top.map((x, i) => `<li><b>${i + 1}. ${esc(x.f.name)}</b><span>${NG.fmt(x.p)}P · 기준가 대비 ${NG.fmtPct(x.c)}</span></li>`).join("")}</ul>
-        <p class="ask-note">무역 포인트는 오늘 판매가와 같아요. 그릇에 담으면 청동 +10% · 은 +20% · 금 +30%.</p>
+        <p class="ask-note">무역 포인트는 오늘 판매가와 같습니다. 그릇에 담으면 청동 +10% · 은 +20% · 금 +30%.</p>
         <div class="ask-foot"><button class="btn primary sm" data-calc="cook">내 재료로 최적 조합 계산</button><button class="btn ghost sm" data-calc="market">시세 그래프 보기</button></div>`;
     }
     if (it.kind === "soul") {
@@ -178,23 +178,23 @@
     const wait = bubble('<span class="ask-typing"><i></i><i></i><i></i></span>', "bot");
     if (!cookData) { try { cookData = await api.calc.get(); } catch (_) { /* 무시 */ } }
     if (/(계산기|포인트\s*계산|무역\s*계산|몇\s*번\s*출항)/.test(q)) {
-      wait.innerHTML = `<div class="ask-ans-head"><span class="src live">계산기</span><b>무역 계산기</b></div><p class="ask-note">바구니에 요리를 담으면 티켓 보너스·출항 횟수까지 계산해요.</p><div class="ask-foot"><button class="btn primary sm" data-calc="trade">무역 계산기 열기</button><button class="btn ghost sm" data-calc="cook">요리 최적화</button></div>`;
+      wait.innerHTML = `<div class="ask-ans-head"><span class="src live">계산기</span><b>무역 계산기</b></div><p class="ask-note">바구니에 요리를 담으면 티켓 보너스·출항 횟수까지 계산합니다.</p><div class="ask-foot"><button class="btn primary sm" data-calc="trade">무역 계산기 열기</button><button class="btn ghost sm" data-calc="cook">요리 최적화</button></div>`;
       return;
     }
     const price = priceAnswer(q);
     if (price) { wait.innerHTML = price; log.scrollTop = log.scrollHeight; return; }
     if (!kb) await loadKB();
-    if (!kb) { wait.innerHTML = `<p class="ask-note">위키를 아직 못 받아왔어요. 인터넷 연결을 확인하고 위의 '위키 새로 받기'를 눌러 주세요.</p>`; return; }
+    if (!kb) { wait.innerHTML = `<p class="ask-note">위키를 아직 못 받아왔습니다. 인터넷 연결을 확인하고 위의 '위키 새로 받기'를 눌러 주십시오.</p>`; return; }
     const r = window.NugulAsk.search(kb, q, { maxLines: 7 });
     if (!r.best) {
-      wait.innerHTML = `<p class="ask-note">위키와 규칙에서 맞는 내용을 못 찾았어요. 다른 말로 물어보거나, 디스코드 문의 채널에 물어봐 주세요.</p>
+      wait.innerHTML = `<p class="ask-note">위키와 규칙에서 맞는 내용을 못 찾았습니다. 다른 말로 물어보거나, 디스코드 문의 채널에 물어봐 주십시오.</p>
         <div class="ask-foot"><button class="btn ghost sm" data-link="discord">디스코드 열기</button><button class="btn ghost sm" data-link="wiki">위키 열기</button></div>`;
       return;
     }
     const c = r.best.chunk;
     const more = c.lines && r.best.lines.length < c.lines.length && !r.outline;
     wait.innerHTML = answerHtml(c, r.best.lines, {
-      note: r.confident ? "" : "딱 맞는 답이 아닐 수도 있어요. 아래 항목도 확인해 보세요.",
+      note: r.confident ? "" : "딱 맞는 답이 아닐 수도 있습니다. 아래 항목도 확인해 보십시오.",
       outline: r.outline, more, related: r.related,
     });
     log.scrollTop = log.scrollHeight;
@@ -212,8 +212,8 @@
   }
   function greet() {
     log.innerHTML = "";
-    bubble(`<div class="ask-ans-head"><span class="src live">도우미</span><b>안녕하세요! 너굴마을에서 궁금한 걸 물어보세요</b></div>
-      <p class="ask-note">위키·규칙에 있는 내용을 찾아서 알려 드려요. 요리 이름을 넣으면 오늘 시세도, 명령어(예: /섬 초대)도 바로 찾아요.</p>`, "bot");
+    bubble(`<div class="ask-ans-head"><span class="src live">도우미</span><b>안녕하세요! 너굴마을에서 궁금한 걸 물어보십시오</b></div>
+      <p class="ask-note">위키·규칙에 있는 내용을 찾아서 알려 드립니다. 요리 이름을 넣으면 오늘 시세도, 명령어(예: /섬 초대)도 바로 찾습니다.</p>`, "bot");
   }
 
   $("#askForm").addEventListener("submit", (e) => {
@@ -234,7 +234,7 @@
   $("#askReload").addEventListener("click", async () => {
     kb = null;
     const k = await loadKB(true);
-    if (k) toast(kbInfo.error ? "새로 받기에 실패해서 저장된 위키를 쓰고 있어요." : "위키를 새로 받아왔어요.", kbInfo.error ? "" : "ok");
+    if (k) toast(kbInfo.error ? "새로 받기에 실패해서 저장된 위키를 쓰고 있습니다." : "위키를 새로 받아왔습니다.", kbInfo.error ? "" : "ok");
   });
 
   let started = false;

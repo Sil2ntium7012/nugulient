@@ -88,7 +88,7 @@ function renderAccount() {
   av.onerror = () => (av.src = DEFAULT_HEAD);
   av.src = profile?.uuid ? headUrl(profile.uuid) : DEFAULT_HEAD;
   $("#navAccount").title = profile ? profile.name : "로그인";
-  $("#welcome").textContent = profile ? `어서와요, ${profile.name}님!` : "어서와요!";
+  $("#welcome").textContent = profile ? `어서 오십시오, ${profile.name}님!` : "어서 오십시오!";
 
   const card = $("#accountCard");
   if (profile) {
@@ -103,11 +103,11 @@ function renderAccount() {
       currentSkin = null;
       renderAccount();
       refreshCosmetics();
-      toast("로그아웃했어요.");
+      toast("로그아웃했습니다.");
     };
   } else {
     card.innerHTML = `<img src="${DEFAULT_HEAD}" alt="" />
-      <div class="who"><b>로그인 안 됨</b><p class="muted small">PLAY 를 누르면 로그인 창이 떠요.</p></div>
+      <div class="who"><b>로그인 안 됨</b><p class="muted small">PLAY 를 누르면 로그인 창이 뜹니다.</p></div>
       <button class="btn primary sm" id="accLogin">마이크로소프트 로그인</button>`;
     $("#accLogin").onclick = () => login();
   }
@@ -120,11 +120,11 @@ async function login() {
     currentSkin = null;
     renderAccount();
     refreshCosmetics();
-    toast(`${profile.name} 계정으로 로그인했어요.`, "ok");
+    toast(`${profile.name} 계정으로 로그인했습니다.`, "ok");
     if ($("#page-skin").classList.contains("active")) openSkinPage();
     return true;
   }
-  if (!r.cancelled) toast(r.error || "로그인하지 못했어요.", "err");
+  if (!r.cancelled) toast(r.error || "로그인하지 못했습니다.", "err");
   return false;
 }
 
@@ -141,12 +141,12 @@ async function refreshStatus() {
     if (s.online && s.latency) $("#statusText").title = `핑 ${s.latency}ms`;
   } catch (_) {
     pill.classList.add("offline");
-    $("#statusText").textContent = "상태를 확인하지 못했어요";
+    $("#statusText").textContent = "상태를 확인하지 못했습니다";
   }
 }
 $("#copyIp").addEventListener("click", async () => {
   await navigator.clipboard.writeText(INFO.server.host);
-  toast("서버 주소를 복사했어요: mcng.kr", "ok");
+  toast("서버 주소를 복사했습니다: mcng.kr", "ok");
 });
 
 // ─── 홈 컨텐츠 ───────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ function setPlayState(state) {
 
 $("#playBtn").addEventListener("click", async () => {
   if (running) {
-    if (confirm("게임을 강제로 종료할까요? 저장되지 않은 내용이 있을 수 있어요.")) api.launch.stop();
+    if (confirm("게임을 강제로 종료하시겠습니까? 저장되지 않은 내용이 있을 수 있습니다.")) api.launch.stop();
     return;
   }
   if (!profile) {
@@ -185,7 +185,7 @@ $("#playBtn").addEventListener("click", async () => {
   }
   if (!r.ok) {
     setPlayState("idle");
-    toast(r.error || "실행하지 못했어요.", "err");
+    toast(r.error || "실행하지 못했습니다.", "err");
   }
 });
 
@@ -204,7 +204,7 @@ api.launch.onStarted(() => {
 api.launch.onClosed(({ code }) => {
   running = false;
   setPlayState("idle");
-  if (code && code !== 0) toast("게임이 비정상적으로 꺼졌어요. 모드를 확인해 주세요.", "err");
+  if (code && code !== 0) toast("게임이 비정상적으로 꺼졌습니다. 모드를 확인해 주십시오.", "err");
   refreshStatus();
 });
 
@@ -308,8 +308,8 @@ async function renderNeogul() {
       b.disabled = true;
       b.textContent = "받는 중…";
       const r = await api.neogulMods.install(b.dataset.ngInstall);
-      if (r.ok) toast("설치했어요. 다음 PLAY 부터 적용돼요.", "ok");
-      else toast(r.error || "설치하지 못했어요.", "err");
+      if (r.ok) toast("설치했습니다. 다음 PLAY 부터 적용됩니다.", "ok");
+      else toast(r.error || "설치하지 못했습니다.", "err");
       renderNeogul();
       updateInstalledCount();
     })
@@ -317,7 +317,7 @@ async function renderNeogul() {
   $$("[data-ng-remove]", grid).forEach((b) =>
     b.addEventListener("click", async () => {
       await api.neogulMods.remove(b.dataset.ngRemove);
-      toast("삭제했어요.");
+      toast("삭제했습니다.");
       renderNeogul();
       updateInstalledCount();
     })
@@ -328,8 +328,8 @@ async function renderNeogul() {
     b.dataset.dl = "neogul-rp";
     b.textContent = "받는 중…";
     const r = await api.neogulMods.installResourcePack();
-    if (r.ok) toast("리소스팩을 받았어요. 설치됨 탭에서 적용할 수 있어요.", "ok");
-    else toast(r.error || "받지 못했어요.", "err");
+    if (r.ok) toast("리소스팩을 받았습니다. 설치됨 탭에서 적용할 수 있습니다.", "ok");
+    else toast(r.error || "받지 못했습니다.", "err");
     renderNeogul();
   });
 }
@@ -361,16 +361,16 @@ async function doSearch() {
   if (!r.ok) {
     const pin = !searchState.query && searchState.offset === 0 ? await pinnedTop(searchState.kind) : "";
     if (seq !== searchSeq) return;
-    list.innerHTML = pin + `<div class="empty">검색하지 못했어요. 인터넷 연결을 확인해 주세요.</div>`;
+    list.innerHTML = pin + `<div class="empty">검색하지 못했습니다. 인터넷 연결을 확인해 주십시오.</div>`;
     bindPinned(list);
     $("#searchHint").textContent = "";
     return;
   }
   $("#searchHint").textContent = `26.1.2 ${searchState.kind === "mod" ? "Fabric " : ""}${KIND_LABEL[searchState.kind]} ${r.total.toLocaleString()}개${
-    searchState.kind === "shader" ? " · 쉐이더를 설치하면 필요한 Iris/Sodium 도 같이 받아요" : ""
+    searchState.kind === "shader" ? " · 쉐이더를 설치하면 필요한 Iris/Sodium 도 같이 받습니다" : ""
   }`;
   if (!r.hits.length) {
-    list.innerHTML = '<div class="empty">검색 결과가 없어요.</div>';
+    list.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
     return;
   }
   const pinned = !searchState.query && searchState.offset === 0 ? await pinnedTop(searchState.kind) : "";
@@ -423,7 +423,7 @@ function bindResultRows(list, hits) {
 
 async function installFromModrinth(id, kind, btn, alreadyInstalled) {
   if (busy.has(id)) return;
-  if (alreadyInstalled && !confirm("이미 설치돼 있어요. 최신 파일로 다시 받을까요?")) return;
+  if (alreadyInstalled && !confirm("이미 설치돼 있습니다. 최신 파일로 다시 받으시겠습니까?")) return;
   busy.set(id, btn);
   btn.disabled = true;
   btn.innerHTML = '받는 중 <span class="mini-pct">0%</span>';
@@ -434,12 +434,12 @@ async function installFromModrinth(id, kind, btn, alreadyInstalled) {
     btn.className = "btn done sm";
     btn.textContent = "설치됨";
     const extra = r.installed.length > 1 ? ` (+ ${r.installed.slice(1).join(", ")})` : "";
-    toast(`${r.installed[0]} ${kind === "mod" ? "설치 완료" : "설치하고 적용했어요"}${extra}`, "ok");
+    toast(`${r.installed[0]} ${kind === "mod" ? "설치 완료" : "설치하고 적용했습니다"}${extra}`, "ok");
     if (r.warning) toast(r.warning, "err");
     updateInstalledCount();
   } else {
     btn.textContent = installLabel(kind);
-    toast(r.error || "설치하지 못했어요.", "err");
+    toast(r.error || "설치하지 못했습니다.", "err");
   }
 }
 
@@ -480,7 +480,7 @@ async function openDetail(id, kind, rowBtn) {
   $("#dIcon").src = "";
   const r = await api.modrinth.project(id);
   if (!r.ok) {
-    $("#dBody").innerHTML = `<div class="empty">불러오지 못했어요.</div>`;
+    $("#dBody").innerHTML = `<div class="empty">불러오지 못했습니다.</div>`;
     return;
   }
   const p = r.project;
@@ -526,7 +526,7 @@ $$("#installedKind button").forEach((b) =>
 $("#btnAddFiles").addEventListener("click", async () => {
   const r = await api.installed.addFiles(installedKind);
   if (r.ok) {
-    toast(`${r.count}개 파일을 넣었어요.`, "ok");
+    toast(`${r.count}개 파일을 넣었습니다.`, "ok");
     renderInstalled();
     updateInstalledCount();
   }
@@ -536,7 +536,7 @@ async function renderInstalled() {
   const list = $("#installedList");
   const [items, state] = await Promise.all([api.installed.list(installedKind), api.apply.state()]);
   if (!items.length) {
-    list.innerHTML = `<div class="empty">설치된 ${KIND_LABEL[installedKind]}가 없어요.<br/><span class="small">위쪽 탭에서 찾아서 설치해 보세요.</span></div>`;
+    list.innerHTML = `<div class="empty">설치된 ${KIND_LABEL[installedKind]}가 없습니다.<br/><span class="small">위쪽 탭에서 찾아서 설치해 보십시오.</span></div>`;
     return;
   }
   list.innerHTML = items
@@ -574,11 +574,11 @@ async function renderInstalled() {
         const on = a.dataset.apply === "on";
         if (installedKind === "resourcepack") await api.apply.resourcepack(file, on);
         else await api.apply.shader(on ? file : null);
-        toast(on ? "적용했어요. 다음 PLAY 부터 보여요." : "적용을 껐어요.", "ok");
+        toast(on ? "적용했습니다. 다음 PLAY 부터 보입니다." : "적용을 껐습니다.", "ok");
         renderInstalled();
       };
     $("[data-del]", row).onclick = async () => {
-      if (!confirm(`${file} 을(를) 삭제할까요?`)) return;
+      if (!confirm(`${file} 을(를) 삭제하시겠습니까?`)) return;
       await api.installed.remove(installedKind, file);
       renderInstalled();
       updateInstalledCount();
@@ -687,13 +687,13 @@ $("#skinApply").addEventListener("click", async () => {
   const r = await api.skin.upload({ filePath: pending.path, variant });
   b.textContent = "이 스킨으로 바꾸기";
   if (r.ok) {
-    toast("스킨을 바꿨어요! 게임 안에서는 다시 접속하면 보여요.", "ok");
+    toast("스킨을 바꿨습니다! 게임 안에서는 다시 접속하면 보입니다.", "ok");
     currentSkin = { ...(currentSkin || {}), skin: pending.dataUrl, variant };
     $("#skinReset").click();
     renderRecent();
   } else {
     b.disabled = false;
-    toast(r.needLogin ? "먼저 로그인해 주세요." : r.error, "err");
+    toast(r.needLogin ? "먼저 로그인해 주십시오." : r.error, "err");
   }
 });
 
@@ -715,7 +715,7 @@ async function renderRecent() {
   const box = $("#recentSkins");
   const list = await api.skin.recent();
   if (!list.length) {
-    box.innerHTML = '<p class="muted small">스킨을 바꾸면 여기에 남아요.</p>';
+    box.innerHTML = '<p class="muted small">스킨을 바꾸면 여기에 남습니다.</p>';
     return;
   }
   box.innerHTML = list.map((s, i) => `<button class="rs" data-i="${i}" title="${esc(s.name)}"><canvas></canvas></button>`).join("");
@@ -804,10 +804,10 @@ $("#setMemory").addEventListener("input", (e) => ($("#setMemoryVal").textContent
     profile = a.profile;
     renderAccount();
     refreshCosmetics(true);
-    if (a.source === "nova") toast(`노바 클라이언트 로그인 기록으로 ${profile.name} 계정에 자동 로그인했어요.`, "ok");
+    if (a.source === "nova") toast(`노바 클라이언트 로그인 기록으로 ${profile.name} 계정에 자동 로그인했습니다.`, "ok");
   } else {
     refreshCosmetics();
-    if (a.lastName) toast(`${a.lastName} 계정 로그인이 만료됐어요. PLAY 를 누르면 다시 로그인해요.`);
+    if (a.lastName) toast(`${a.lastName} 계정 로그인이 만료됐습니다. PLAY 를 누르면 다시 로그인합니다.`);
   }
 })();
 
@@ -868,10 +868,10 @@ async function refreshCosmetics(first = false) {
   applyAppearance();
   $("#pullDot").hidden = !CSTATE.canPull;
   if (CSTATE.tampered) {
-    toastAction("저장 파일을 고친 흔적이 있어서 보관함과 로그인 정보를 초기화했어요.", "확인", () => {});
+    toastAction("저장 파일을 고친 흔적이 있어서 보관함과 로그인 정보를 초기화했습니다.", "확인", () => {});
   }
   if (CSTATE.imported?.length) {
-    toast(`노바 클라이언트 보관함에서 ${CSTATE.imported.length}개를 가져왔어요.`, "ok");
+    toast(`노바 클라이언트 보관함에서 ${CSTATE.imported.length}개를 가져왔습니다.`, "ok");
   }
   if ($("#page-inventory").classList.contains("active")) renderInventory();
   if (!$("#settingsModal").hidden) renderLook();
@@ -961,8 +961,8 @@ function renderGacha() {
     card.className = "gacha-card";
     stage.classList.remove("revealed");
     $("#gachaKicker").textContent = "이번 주 뽑기";
-    $("#gachaTitle").textContent = "로그인하면 뽑을 수 있어요";
-    $("#gachaSub").textContent = "뽑기 기록과 도감은 마크 계정마다 이 PC에 저장돼요.";
+    $("#gachaTitle").textContent = "로그인하면 뽑을 수 있습니다";
+    $("#gachaSub").textContent = "뽑기 기록과 도감은 마크 계정마다 이 PC에 저장됩니다.";
     btn.textContent = "로그인";
     btn.disabled = false;
     btn.onclick = () => login();
@@ -974,8 +974,8 @@ function renderGacha() {
     card.className = "gacha-card";
     stage.classList.remove("revealed");
     $("#gachaKicker").textContent = "이번 주 뽑기";
-    $("#gachaTitle").textContent = "뽑기 1회가 기다리고 있어요";
-    $("#gachaSub").textContent = `색상이나 테마 중 하나가 나와요. 이번 주가 끝나기까지 ${fmtLeft(CSTATE.nextResetAt - Date.now())}.`;
+    $("#gachaTitle").textContent = "뽑기 1회가 기다리고 있습니다";
+    $("#gachaSub").textContent = `색상이나 테마 중 하나가 나옵니다. 이번 주가 끝나기까지 ${fmtLeft(CSTATE.nextResetAt - Date.now())}.`;
     btn.textContent = "뽑기";
     btn.disabled = false;
     btn.onclick = doPull;
@@ -988,11 +988,11 @@ function renderGacha() {
       card.className = "gacha-card flipped";
       stage.classList.add("revealed");
       $("#gachaKicker").textContent = "이번 주에 뽑은 것";
-      $("#gachaTitle").textContent = `${item.name} ${last.isNew ? "획득!" : "(이미 있던 거예요)"}`;
+      $("#gachaTitle").textContent = `${item.name} ${last.isNew ? "획득!" : "(이미 있던 것입니다)"}`;
       showEquipButton(item);
     }
-    $("#gachaSub").textContent = `다음 뽑기까지 ${fmtLeft(CSTATE.nextResetAt - Date.now())} 남았어요. (매주 월요일 0시)`;
-    btn.textContent = "다음 주에 또 만나요";
+    $("#gachaSub").textContent = `다음 뽑기까지 ${fmtLeft(CSTATE.nextResetAt - Date.now())} 남았습니다. (매주 월요일 0시)`;
+    btn.textContent = "다음 주에 다시 뵙겠습니다";
     btn.disabled = true;
   }
 }
@@ -1016,7 +1016,7 @@ async function doPull() {
     card.className = "gacha-card";
     btn.disabled = false;
     if (r.needLogin) login();
-    else toast(r.error || "뽑지 못했어요.", "err");
+    else toast(r.error || "뽑지 못했습니다.", "err");
     return;
   }
   const item = C.byId(r.id);
@@ -1029,7 +1029,7 @@ async function doPull() {
     $("#pullDot").hidden = true;
     renderInventory();
   }, 750);
-  toast(r.isNew ? `${rarityOf(item).label} ${item.name}을(를) 도감에 새로 등록했어요!` : `${item.name}이(가) 또 나왔어요 (×${r.count})`, "ok");
+  toast(r.isNew ? `${rarityOf(item).label} ${item.name}을(를) 도감에 새로 등록했습니다!` : `${item.name}이(가) 또 나왔습니다 (×${r.count})`, "ok");
 }
 
 async function equip(kind, id) {
@@ -1064,7 +1064,7 @@ function renderOwned() {
           <div class="meta"><b>${esc(t.name)}</b><small style="color:${r.color}">${r.label}</small></div></button>`;
       })
       .join("") +
-    (themes.length ? "" : `<div class="muted small" style="align-self:center;padding:10px">아직 테마가 없어요. 뽑기에서 에픽·레전더리로 나와요.</div>`);
+    (themes.length ? "" : `<div class="muted small" style="align-self:center;padding:10px">아직 테마가 없습니다. 뽑기에서 에픽·레전더리로 나옵니다.</div>`);
 
   $("#ownedColors").innerHTML = colors
     .map((c) => {
@@ -1109,7 +1109,7 @@ function renderDex() {
 $("#btnImportNova").addEventListener("click", async () => {
   const r = await api.cosmetics.importNova();
   if (!r.ok) return toast(r.error, "err");
-  toast(r.added.length ? `노바클에서 ${r.added.length}개를 더 가져왔어요.` : "노바클에 있는 건 이미 다 가져왔어요.", "ok");
+  toast(r.added.length ? `노바클에서 ${r.added.length}개를 더 가져왔습니다.` : "노바클에 있는 건 이미 다 가져왔습니다.", "ok");
   refreshCosmetics();
 });
 
@@ -1141,8 +1141,8 @@ function renderLook() {
   $("#setFont").value = SETTINGS.font || "suit";
   const theme = CSTATE.equippedTheme && C.byId(CSTATE.equippedTheme);
   $("#lookThemeNote").innerHTML = theme
-    ? `지금 <b>${esc(theme.name)}</b> 테마를 쓰는 중이라 바탕·색은 테마를 빼야 보여요. <button class="link-btn" id="lookUnequip">테마 빼기</button>`
-    : "테마를 장착하지 않았을 때 쓰는 바탕이에요";
+    ? `지금 <b>${esc(theme.name)}</b> 테마를 쓰는 중이라 바탕·색은 테마를 빼야 보입니다. <button class="link-btn" id="lookUnequip">테마 빼기</button>`
+    : "테마를 장착하지 않았을 때 쓰는 바탕입니다";
   const un = $("#lookUnequip");
   if (un) un.onclick = () => equip("theme", null);
   const colors = C.ITEMS.filter((i) => i.kind === "color" && CSTATE.owned[i.id]);
@@ -1150,7 +1150,7 @@ function renderLook() {
   $("#setColors").innerHTML =
     colors
       .map((c) => `<button class="swatch-btn ${CSTATE.equippedColor === c.id ? "on" : ""}" data-c="${c.id}" title="${esc(c.name)}" style="background:${c.hex}"></button>`)
-      .join("") + (lockedCount ? `<button class="swatch-more" id="lookMore">+ ${lockedCount}색은 뽑기로 얻어요</button>` : "");
+      .join("") + (lockedCount ? `<button class="swatch-more" id="lookMore">+ ${lockedCount}색은 뽑기로 얻습니다</button>` : "");
   $$("#setColors [data-c]").forEach((b) => (b.onclick = () => equip("color", b.dataset.c)));
   const more = $("#lookMore");
   if (more) more.onclick = () => {
@@ -1168,10 +1168,10 @@ function onUpdateState(st) {
   v.textContent =
     st.status === "downloading" ? `${base} · 새 버전 ${st.version || ""} 받는 중 ${st.pct ?? 0}%` :
     st.status === "ready" ? `${base} · 새 버전 ${st.version} 준비 완료` :
-    st.status === "none" ? `${base} · 최신 버전이에요` :
+    st.status === "none" ? `${base} · 최신 버전입니다` :
     st.status === "checking" ? `${base} · 확인 중…` : base;
   if (st.status === "ready" && !updateToast) {
-    updateToast = toastAction(`새 버전 ${st.version} 이 준비됐어요.`, "재시작해서 업데이트", installUpdate);
+    updateToast = toastAction(`새 버전 ${st.version} 이 준비됐습니다.`, "재시작해서 업데이트", installUpdate);
   }
 }
 async function installUpdate() {
@@ -1240,8 +1240,8 @@ function renderRanking() {
   renderRankTabs();
   const body = $("#rankBody");
   if (!RANK?.data) {
-    $("#rankSub").textContent = RANK?.error ? "랭킹을 받아오지 못했어요. 인터넷 연결을 확인해 주세요." : "불러오는 중…";
-    body.innerHTML = RANK?.error ? '<div class="empty">아직 받아온 랭킹이 없어요.</div>' : '<div class="spinner"></div>';
+    $("#rankSub").textContent = RANK?.error ? "랭킹을 받아오지 못했습니다. 인터넷 연결을 확인해 주십시오." : "불러오는 중…";
+    body.innerHTML = RANK?.error ? '<div class="empty">아직 받아온 랭킹이 없습니다.</div>' : '<div class="spinner"></div>';
     return;
   }
   const d = RANK.data;
@@ -1268,7 +1268,7 @@ function renderRanking() {
 
   const rows = Array.isArray(d[rankTab]) ? d[rankTab] : [];
   if (!rows.length) {
-    body.innerHTML = '<div class="empty">아직 순위가 없어요.</div>';
+    body.innerHTML = '<div class="empty">아직 순위가 없습니다.</div>';
     return;
   }
   const medal = ["🥇", "🥈", "🥉"];
@@ -1279,7 +1279,7 @@ function renderRanking() {
   });
   const mine = rows.findIndex((r) => String(rowName(r)).toLowerCase() === me);
   body.innerHTML = `
-    ${mine >= 0 ? `<div class="notice rank-me">🎉 ${esc(profile.name)}님은 지금 <b>${mine + 1}위</b>예요!</div>` : ""}
+    ${mine >= 0 ? `<div class="notice rank-me">🎉 ${esc(profile.name)}님은 지금 <b>${mine + 1}위</b>입니다!</div>` : ""}
     <div class="podiums">${[podium[1] || "", podium[0], podium[2] || ""].join("")}</div>
     <div class="rank-list">${rows.slice(3).map((r, i) => {
       const v = rankValue(rankTab, r);
@@ -1292,8 +1292,8 @@ $("#rankRefresh").addEventListener("click", async () => {
   b.disabled = true;
   RANK = await api.rank.refresh();
   b.disabled = false;
-  if (RANK.error) toast("랭킹을 받아오지 못했어요.", "err");
-  else toast("랭킹을 새로 받아왔어요.", "ok");
+  if (RANK.error) toast("랭킹을 받아오지 못했습니다.", "err");
+  else toast("랭킹을 새로 받아왔습니다.", "ok");
   renderRanking();
 });
 api.rank.onData((r) => {
@@ -1305,9 +1305,9 @@ let ngUpdToast = null;
 async function updateNeogulAll() {
   toast("너굴마을 모드 업데이트 받는 중…");
   const r = await api.neogulMods.updateAll();
-  if (!r.ok) return toast(r.error || "업데이트하지 못했어요.", "err");
+  if (!r.ok) return toast(r.error || "업데이트하지 못했습니다.", "err");
   if (r.failed?.length) toast(`업데이트 실패: ${r.failed.join(", ")}`, "err");
-  else toast(`너굴마을 모드 ${r.updated}개를 업데이트했어요. 다음 PLAY 부터 적용돼요.`, "ok");
+  else toast(`너굴마을 모드 ${r.updated}개를 업데이트했습니다. 다음 PLAY 부터 적용됩니다.`, "ok");
 }
 function showNeogulUpdates(list) {
   if (ngUpdToast) { ngUpdToast.remove(); ngUpdToast = null; }
@@ -1380,9 +1380,9 @@ async function renderPicks() {
       b.textContent = "준비 중…";
       b.dataset.progress = kind;
       const r = await api.picks.installAll(kind);
-      if (!r.ok) toast(r.error || "설치하지 못했어요.", "err");
+      if (!r.ok) toast(r.error || "설치하지 못했습니다.", "err");
       else if (r.failed.length) toast(`${r.installed}개 설치, ${r.failed.length}개 실패 (${r.failed.slice(0, 3).join(", ")}${r.failed.length > 3 ? " 외" : ""})`, "err");
-      else toast(`망고's pick ${PICK_KIND_LABEL[kind]} ${r.installed}개를 설치했어요.`, "ok");
+      else toast(`망고's pick ${PICK_KIND_LABEL[kind]} ${r.installed}개를 설치했습니다.`, "ok");
       renderPicks();
       updateInstalledCount();
     })
@@ -1404,7 +1404,7 @@ $("#ngInstallAll").addEventListener("click", async () => {
   b.disabled = true;
   const r = await api.neogulMods.installAll();
   if (r.failed.length) toast(`설치하지 못한 모드: ${r.failed.join(", ")}`, "err");
-  else toast(r.installed ? `너굴마을 기본 모드 ${r.installed}개를 설치했어요.` : "이미 다 설치돼 있어요.", "ok");
+  else toast(r.installed ? `너굴마을 기본 모드 ${r.installed}개를 설치했습니다.` : "이미 다 설치돼 있습니다.", "ok");
   renderNeogul();
   updateInstalledCount();
 });
@@ -1437,8 +1437,8 @@ function bindPinned(root) {
       b.textContent = "받는 중…";
       const r = await api.neogulMods.install(b.dataset.ngOne);
       b.disabled = false;
-      if (r.ok) { b.className = "btn done sm"; b.textContent = "설치됨"; toast("설치했어요. 다음 PLAY 부터 적용돼요.", "ok"); }
-      else { b.textContent = "설치"; toast(r.error || "설치하지 못했어요.", "err"); }
+      if (r.ok) { b.className = "btn done sm"; b.textContent = "설치됨"; toast("설치했습니다. 다음 PLAY 부터 적용됩니다.", "ok"); }
+      else { b.textContent = "설치"; toast(r.error || "설치하지 못했습니다.", "err"); }
       updateInstalledCount();
     })
   );
@@ -1453,7 +1453,7 @@ document.addEventListener("error", (e) => {
 }, true);
 
 api.onToast?.(({ msg, kind }) => toast(msg, kind));
-api.update.onInstalling?.(({ version }) => toast(`새 버전${version ? " " + version : ""} 설치를 위해 잠깐 껐다 켤게요…`, "ok"));
+api.update.onInstalling?.(({ version }) => toast(`새 버전${version ? " " + version : ""} 설치를 위해 잠깐 껐다 켜겠습니다…`, "ok"));
 
 // 홈 PLAY 옆 메모리 빠른 설정 (설정 > 게임 슬라이더와 같은 값)
 async function fillMemQuick(s) {
@@ -1469,7 +1469,7 @@ $("#memQuick").addEventListener("change", async (e) => {
   await api.settings.set({ memoryGB: v });
   $("#setMemory").value = String(v);
   $("#setMemoryVal").textContent = `${v}GB`;
-  toast(`메모리를 ${v}GB 로 바꿨어요. 다음 PLAY 부터 적용돼요.`, "ok");
+  toast(`메모리를 ${v}GB 로 바꿨습니다. 다음 PLAY 부터 적용됩니다.`, "ok");
 });
 $("#setMemory").addEventListener("change", (e) => { $("#memQuick").value = e.target.value; });
 
@@ -1491,7 +1491,7 @@ api.rec.onDone((r) => {
 function renderRecommend() {
   const done = !!recAt && kstDayOf(recAt) === kstDay();
   const st = $("#recState");
-  st.textContent = done ? "오늘 완료 ✓" : "오늘 아직 안 했어요";
+  st.textContent = done ? "오늘 완료 ✓" : "오늘 아직 안 했습니다";
   st.classList.toggle("done", done);
   const k = kstNow();
   const h = k.getUTCHours(), m = k.getUTCMinutes();
@@ -1506,7 +1506,7 @@ function renderRecommend() {
 }
 $("#recBtn").addEventListener("click", () => {
   api.openExternal(INFO.links.minelist);
-  toast("마인리스트가 열렸어요. 추천하고 게임에 들어가면 보상이 오고 여기도 완료로 바뀌어요.", "ok");
+  toast("마인리스트가 열렸습니다. 추천하고 게임에 들어가면 보상이 오고 여기도 완료로 바뀝니다.", "ok");
 });
 setInterval(() => INFO && renderRecommend(), 60_000);
 
@@ -1518,10 +1518,10 @@ document.addEventListener("click", (e) => {
   if (cg && window.NugulTools) window.NugulTools.openCalc(cg.dataset.calcGo);
 });
 $("#toolRpFix").addEventListener("click", async () => {
-  if (!confirm("서버 리소스팩을 지우고 다음 접속 때 새로 받게 할까요?\n(글자나 아이템이 깨질 때 쓰는 방법이에요)")) return;
+  if (!confirm("서버 리소스팩을 지우고 다음 접속 때 새로 받게 하시겠습니까?\n(글자나 아이템이 깨질 때 쓰는 방법입니다)")) return;
   const r = await api.tools.clearRpCache();
   if (!r.ok) return toast(r.error, "err");
-  toast(r.empty ? "지울 게 없어요. 접속하면 새로 받아져요." : "지웠어요. 다음에 접속하면 리소스팩을 새로 받아요.", "ok");
+  toast(r.empty ? "지울 게 없습니다. 접속하면 새로 받아집니다." : "지웠습니다. 다음에 접속하면 리소스팩을 새로 받습니다.", "ok");
 });
 $("#toolShots").addEventListener("click", async () => {
   $("#shotsModal").hidden = false;
@@ -1529,7 +1529,7 @@ $("#toolShots").addEventListener("click", async () => {
   grid.innerHTML = '<div class="spinner"></div>';
   const list = await api.tools.screenshots();
   if (!list.length) {
-    grid.innerHTML = '<div class="empty">아직 스크린샷이 없어요.<br/><span class="small">게임 안에서 F2 를 누르면 찍혀요.</span></div>';
+    grid.innerHTML = '<div class="empty">아직 스크린샷이 없습니다.<br/><span class="small">게임 안에서 F2 를 누르면 찍힙니다.</span></div>';
     return;
   }
   grid.innerHTML = list.map((x) => {

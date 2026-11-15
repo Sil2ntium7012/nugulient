@@ -308,7 +308,7 @@ ipcMain.handle("tools:screenshots", async () => {
 ipcMain.handle("tools:open-screenshot", (_e, name) => shell.openPath(path.join(GAME_DIR, "screenshots", path.basename(String(name)))));
 // 위키 안내대로: downloads 폴더(서버 리소스팩이 받아지는 곳)를 지우면 다음 접속 때 새로 받음
 ipcMain.handle("tools:clear-rp-cache", async () => {
-  if (gameProcess) return { ok: false, error: "게임을 끈 다음에 해 주세요." };
+  if (gameProcess) return { ok: false, error: "게임을 끈 다음에 해 주십시오." };
   const dir = path.join(GAME_DIR, "downloads");
   if (!fs.existsSync(dir)) return { ok: true, empty: true };
   await fsp.rm(dir, { recursive: true, force: true });
@@ -348,7 +348,7 @@ function profileFrom(mclcAuth, fallbackUuid) {
 async function restoreFromSavedToken(savedToken, fallbackUuid) {
   const auth = new Auth("select_account");
   let mc = await tokenUtils.fromMclcToken(auth, savedToken);
-  if (!mc) throw new Error("저장된 로그인 정보를 갱신할 수 없어요.");
+  if (!mc) throw new Error("저장된 로그인 정보를 갱신할 수 없습니다.");
   mc = await mc.refresh(false); // 만료됐을 때만 실제로 갱신
   const mclcAuth = mc.mclc();
   return { mclcAuth, refreshable: mc.mclc(true), profile: profileFrom(mclcAuth, fallbackUuid) };
@@ -412,7 +412,7 @@ async function checkOwnership(accessToken) {
     const res = await fetch("https://api.minecraftservices.com/minecraft/profile", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (res.status === 404) return { ok: false, error: "마인크래프트 자바 에디션이 없는 계정이에요." };
+    if (res.status === 404) return { ok: false, error: "마인크래프트 자바 에디션이 없는 계정입니다." };
     return { ok: true };
   } catch (_) {
     return { ok: true }; // 네트워크 문제면 막지 않음
@@ -451,17 +451,17 @@ function loginErrorCode(err) {
 
 function loginErrorText(code) {
   const c = String(code);
-  if (c.includes("xsts.userNotFound")) return "이 마이크로소프트 계정에 Xbox 프로필이 없어요. xbox.com 에 한 번 로그인해서 프로필을 만든 뒤 다시 해 주세요.";
-  if (c.includes("xsts.child")) return "만 18세 미만 계정은 보호자가 Xbox 가족 설정에서 허락해 줘야 로그인할 수 있어요.";
-  if (c.includes("xsts.bannedCountry")) return "Xbox Live 를 쓸 수 없는 지역의 계정이에요.";
-  if (c.includes("minecraft.entitlements")) return "이 계정은 마인크래프트 자바 에디션을 갖고 있지 않아요. (게임패스면 공식 런처를 한 번 실행해 주세요)";
-  if (c.includes("minecraft.profile")) return "마인크래프트 프로필(닉네임)이 아직 없어요. 공식 런처에서 닉네임을 먼저 만들어 주세요.";
-  if (c.includes("error.auth.microsoft")) return "마이크로소프트 로그인이 만료됐어요. 다시 로그인해 주세요.";
-  if (c.includes("error.auth.xboxLive") || c.includes("error.auth.xsts")) return "Xbox 서버에 로그인하지 못했어요. 잠시 뒤 다시 해 주세요.";
-  if (c.includes("error.auth.minecraft")) return "마인크래프트 서버에 로그인하지 못했어요. 잠시 뒤 다시 해 주세요.";
-  if (c.includes("error.state") || c.includes("error.gui")) return "로그인 창을 열지 못했어요. 런처를 껐다 켜고 다시 해 주세요.";
-  if (/ENOTFOUND|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|network|fetch failed/i.test(c)) return "인터넷 연결을 확인해 주세요. (마이크로소프트 서버에 닿지 않았어요)";
-  return "로그인하지 못했어요. 다시 시도해 주세요. (" + c.slice(0, 60) + ")";
+  if (c.includes("xsts.userNotFound")) return "이 마이크로소프트 계정에 Xbox 프로필이 없습니다. xbox.com 에 한 번 로그인해서 프로필을 만든 뒤 다시 해 주십시오.";
+  if (c.includes("xsts.child")) return "만 18세 미만 계정은 보호자가 Xbox 가족 설정에서 허락해 줘야 로그인할 수 있습니다.";
+  if (c.includes("xsts.bannedCountry")) return "Xbox Live 를 쓸 수 없는 지역의 계정입니다.";
+  if (c.includes("minecraft.entitlements")) return "이 계정은 마인크래프트 자바 에디션을 갖고 있지 않습니다. (게임패스면 공식 런처를 한 번 실행해 주십시오)";
+  if (c.includes("minecraft.profile")) return "마인크래프트 프로필(닉네임)이 아직 없습니다. 공식 런처에서 닉네임을 먼저 만들어 주십시오.";
+  if (c.includes("error.auth.microsoft")) return "마이크로소프트 로그인이 만료됐습니다. 다시 로그인해 주십시오.";
+  if (c.includes("error.auth.xboxLive") || c.includes("error.auth.xsts")) return "Xbox 서버에 로그인하지 못했습니다. 잠시 뒤 다시 해 주십시오.";
+  if (c.includes("error.auth.minecraft")) return "마인크래프트 서버에 로그인하지 못했습니다. 잠시 뒤 다시 해 주십시오.";
+  if (c.includes("error.state") || c.includes("error.gui")) return "로그인 창을 열지 못했습니다. 런처를 껐다 켜고 다시 해 주십시오.";
+  if (/ENOTFOUND|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|network|fetch failed/i.test(c)) return "인터넷 연결을 확인해 주십시오. (마이크로소프트 서버에 닿지 않았습니다)";
+  return "로그인하지 못했습니다. 다시 시도해 주십시오. (" + c.slice(0, 60) + ")";
 }
 
 ipcMain.handle("auth:logout", () => {
@@ -629,7 +629,7 @@ async function ensureJava() {
   else await tar.x({ file: archive, cwd: own });
   await fsp.unlink(archive).catch(() => {});
   const bin = javaIn(own);
-  if (!bin) throw new Error("자바를 설치하지 못했어요.");
+  if (!bin) throw new Error("자바를 설치하지 못했습니다.");
   if (process.platform !== "win32") fs.chmodSync(bin, 0o755);
   return bin;
 }
@@ -647,10 +647,10 @@ async function ensureFabric() {
     const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${SERVER.mcVersion}`, {
       headers: { "User-Agent": USER_AGENT },
     });
-    if (!res.ok) throw new Error("Fabric 정보를 받지 못했어요.");
+    if (!res.ok) throw new Error("Fabric 정보를 받지 못했습니다.");
     const loaders = await res.json();
     const pick = loaders.find((l) => l.loader.stable) || loaders[0];
-    if (!pick) throw new Error(`${SERVER.mcVersion} 용 Fabric 로더가 없어요.`);
+    if (!pick) throw new Error(`${SERVER.mcVersion} 용 Fabric 로더가 없습니다.`);
     const id = `fabric-loader-${pick.loader.version}-${SERVER.mcVersion}`;
     const jsonPath = path.join(GAME_DIR, "versions", id, `${id}.json`);
     if (!fs.existsSync(jsonPath)) {
@@ -659,7 +659,7 @@ async function ensureFabric() {
         `https://meta.fabricmc.net/v2/versions/loader/${SERVER.mcVersion}/${pick.loader.version}/profile/json`,
         { headers: { "User-Agent": USER_AGENT } }
       );
-      if (!pr.ok) throw new Error("Fabric 프로필을 받지 못했어요.");
+      if (!pr.ok) throw new Error("Fabric 프로필을 받지 못했습니다.");
       await fsp.mkdir(path.dirname(jsonPath), { recursive: true });
       await fsp.writeFile(jsonPath, await pr.text(), "utf-8");
     }
@@ -698,7 +698,7 @@ function nbtRead(buf) {
       default: throw new Error("알 수 없는 NBT 태그: " + t);
     }
   };
-  if (u1() !== T.COMPOUND) throw new Error("servers.dat 형식이 아니에요");
+  if (u1() !== T.COMPOUND) throw new Error("servers.dat 형식이 아닙니다");
   const name = str();
   return { name, root: payload(T.COMPOUND) };
 }
@@ -778,7 +778,7 @@ let launching = false;
 ipcMain.handle("launch:status", () => ({ running: !!gameProcess, launching }));
 
 ipcMain.handle("launch:start", async () => {
-  if (gameProcess || launching) return { ok: false, error: "이미 실행 중이에요." };
+  if (gameProcess || launching) return { ok: false, error: "이미 실행 중입니다." };
   if (!cachedAuth) return { ok: false, needLogin: true };
   launching = true;
   try {
@@ -852,7 +852,7 @@ ipcMain.handle("launch:start", async () => {
     progress("game", 0, "게임 파일 확인 중");
     gameProcess = await launcher.launch(opts);
     startNowPlayingBridge(GAME_DIR); // 듣고 있는 노래를 게임 폴더에 적어 줌 (모드가 읽음)
-    if (!gameProcess) throw new Error("게임을 실행하지 못했어요. 로그를 확인해 주세요.");
+    if (!gameProcess) throw new Error("게임을 실행하지 못했습니다. 로그를 확인해 주십시오.");
     progress("done", 100, "너굴마을로 접속 중");
     send("launch:started", {});
     if (s.hideOnLaunch) setTimeout(() => mainWindow?.hide(), 2500);
@@ -924,7 +924,7 @@ ipcMain.handle("installed:list", (_e, kind) => listInstalled(kind));
 
 function safeName(name) {
   const base = path.basename(String(name || ""));
-  if (!base || base === "." || base === "..") throw new Error("파일 이름이 이상해요.");
+  if (!base || base === "." || base === "..") throw new Error("파일 이름이 이상합니다.");
   return base;
 }
 
@@ -1073,7 +1073,7 @@ ipcMain.handle("neogul:install", async (_e, id) => {
 });
 async function installNeogulMod(id) {
   const mod = NEOGUL_MODS.find((m) => m.id === id);
-  if (!mod) return { ok: false, error: "모르는 모드예요." };
+  if (!mod) return { ok: false, error: "모르는 모드입니다." };
   try {
     const pats = re(mod.patterns);
     const shared = re(mod.shared);
@@ -1099,7 +1099,7 @@ async function installNeogulMod(id) {
           setInstalledMeta(base, { title: `${mod.name} (${base.replace(/\.jar$/i, "")})`, neogul: mod.id });
           extracted++;
         }
-        if (!extracted) throw new Error("압축 파일 안에서 모드를 찾지 못했어요.");
+        if (!extracted) throw new Error("압축 파일 안에서 모드를 찾지 못했습니다.");
       }
     }
     log(`[너굴 모드] 설치: ${mod.name}`);
@@ -1186,7 +1186,7 @@ async function checkNeogulUpdates() {
 ipcMain.handle("neogul:updates", () => neogulUpdates);
 ipcMain.handle("neogul:check-updates", () => checkNeogulUpdates());
 ipcMain.handle("neogul:update-all", async () => {
-  if (gameProcess) return { ok: false, error: "게임을 끈 뒤에 업데이트해 주세요." };
+  if (gameProcess) return { ok: false, error: "게임을 끈 뒤에 업데이트해 주십시오." };
   const failed = [];
   let count = 0;
   for (const u of [...neogulUpdates]) {
@@ -1309,7 +1309,7 @@ async function installProject(projectId, kind, seen = new Set()) {
   if (seen.has(projectId)) return [];
   seen.add(projectId);
   const version = await bestVersion(projectId, kind);
-  if (!version) throw new Error(`${SERVER.mcVersion} 용 파일이 없어요.`);
+  if (!version) throw new Error(`${SERVER.mcVersion} 용 파일이 없습니다.`);
   const file = version.files.find((f) => f.primary) || version.files[0];
   const fileName = safeName(file.filename);
   const project = await mr(`/project/${encodeURIComponent(projectId)}`);
@@ -1368,7 +1368,7 @@ ipcMain.handle("modrinth:install", async (_e, { id, kind, apply }) => {
       try {
         extra = await ensureShaderLoader();
       } catch (err) {
-        warning = `쉐이더용 Iris/Sodium 을 받지 못했어요 (${err?.message || err}). 나중에 모드 탭에서 직접 설치해 주세요.`;
+        warning = `쉐이더용 Iris/Sodium 을 받지 못했습니다 (${err?.message || err}). 나중에 모드 탭에서 직접 설치해 주십시오.`;
       }
     }
     // "넣기까지" - 리소스팩/쉐이더는 설치하자마자 게임에 적용
@@ -1392,7 +1392,7 @@ ipcMain.handle("skin:current", async () => {
     const res = await fetch("https://api.minecraftservices.com/minecraft/profile", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error(`프로필을 못 불러왔어요 (${res.status})`);
+    if (!res.ok) throw new Error(`프로필을 못 불러왔습니다 (${res.status})`);
     const p = await res.json();
     const skin = (p.skins || []).find((s) => s.state === "ACTIVE") || p.skins?.[0];
     const cape = (p.capes || []).find((c) => c.state === "ACTIVE");
@@ -1421,7 +1421,7 @@ ipcMain.handle("skin:pick", async () => {
   const w = isPng ? buf.readUInt32BE(16) : 0;
   const h = isPng ? buf.readUInt32BE(20) : 0;
   if (!isPng || w !== 64 || (h !== 64 && h !== 32)) {
-    return { ok: false, error: "64×64 크기의 PNG 스킨 파일만 쓸 수 있어요." };
+    return { ok: false, error: "64×64 크기의 PNG 스킨 파일만 쓸 수 있습니다." };
   }
   return { ok: true, path: r.filePaths[0], name: path.basename(r.filePaths[0]), dataUrl: "data:image/png;base64," + buf.toString("base64") };
 });
@@ -1439,7 +1439,7 @@ ipcMain.handle("skin:upload", async (_e, { filePath, variant }) => {
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
-    if (!res.ok) throw new Error(`스킨을 바꾸지 못했어요 (${res.status})`);
+    if (!res.ok) throw new Error(`스킨을 바꾸지 못했습니다 (${res.status})`);
     // 최근에 쓴 스킨 목록(이 PC 에만, 최대 12개)
     const dir = path.join(ROOT, "skins");
     await fsp.mkdir(dir, { recursive: true });
@@ -1568,11 +1568,11 @@ ipcMain.handle("cosmetics:state", () => {
 
 ipcMain.handle("cosmetics:import-nova", () => {
   const uuid = currentUuid();
-  if (!uuid) return { ok: false, error: "먼저 로그인해 주세요." };
+  if (!uuid) return { ok: false, error: "먼저 로그인해 주십시오." };
   const c = getCollection(uuid);
   const r = importNova(uuid, c);
   saveCollection(uuid, c);
-  if (!r.found) return { ok: false, error: "이 계정의 노바 클라이언트 보관함을 찾지 못했어요." };
+  if (!r.found) return { ok: false, error: "이 계정의 노바 클라이언트 보관함을 찾지 못했습니다." };
   return { ok: true, added: r.added };
 });
 
@@ -1607,11 +1607,11 @@ ipcMain.handle("cosmetics:pull", async () => {
   const uuid = currentUuid();
   if (!uuid) return { ok: false, needLogin: true };
   const now = await networkNow();
-  if (!now) return { ok: false, error: "뽑기는 인터넷에 연결돼 있을 때만 할 수 있어요." };
+  if (!now) return { ok: false, error: "뽑기는 인터넷에 연결돼 있을 때만 할 수 있습니다." };
   if (Math.abs(now - Date.now()) > 10 * 60 * 1000) log(`[뽑기] PC 시계가 ${Math.round((Date.now() - now) / 60000)}분 어긋나 있음 - 인터넷 시각으로 판단`);
   const c = getCollection(uuid);
   const ws = weekStart(now);
-  if ((c.lastPullWeek || 0) >= ws) return { ok: false, error: "이번 주 뽑기는 이미 했어요." };
+  if ((c.lastPullWeek || 0) >= ws) return { ok: false, error: "이번 주 뽑기는 이미 했습니다." };
   // 겹치면 두 번까지 다시 굴려서 도감이 너무 안 차지 않게
   let item = rollOnce();
   for (let i = 0; i < 2 && c.owned[item.id]; i++) item = rollOnce();
@@ -1630,7 +1630,7 @@ ipcMain.handle("cosmetics:equip", (_e, kind, id) => {
   const uuid = currentUuid();
   if (!uuid) return { ok: false, needLogin: true };
   const c = getCollection(uuid);
-  if (id && (!c.owned[id] || COSMETICS.byId(id)?.kind !== kind)) return { ok: false, error: "갖고 있지 않은 아이템이에요." };
+  if (id && (!c.owned[id] || COSMETICS.byId(id)?.kind !== kind)) return { ok: false, error: "갖고 있지 않은 아이템입니다." };
   if (kind === "color") c.equippedColor = id || "nugul-orange";
   if (kind === "theme") c.equippedTheme = id || null;
   saveCollection(uuid, c);
@@ -1706,7 +1706,7 @@ ipcMain.handle("rec:get", () => ({ at: store.get("recommendAt") || 0 }));
 
 ipcMain.handle("update:state", () => ({ ...updateState, packaged: app.isPackaged }));
 ipcMain.handle("update:check", async () => {
-  if (!app.isPackaged) return { ok: false, error: "설치한 버전에서만 업데이트를 확인할 수 있어요." };
+  if (!app.isPackaged) return { ok: false, error: "설치한 버전에서만 업데이트를 확인할 수 있습니다." };
   try {
     await autoUpdater.checkForUpdates();
     return { ok: true };
@@ -1715,14 +1715,14 @@ ipcMain.handle("update:check", async () => {
   }
 });
 ipcMain.handle("update:install", () => {
-  if (gameProcess) return { ok: false, error: "게임을 끈 다음 업데이트할 수 있어요." };
+  if (gameProcess) return { ok: false, error: "게임을 끈 다음 업데이트할 수 있습니다." };
   setImmediate(() => autoUpdater.quitAndInstall(true, true)); // 조용히 설치하고 다시 켜짐
   return { ok: true };
 });
 
 // ─── 계산기 (요리 시세) · 질문 도우미 (위키) ─────────────────────────────────
-// 요리 시세는 매일 00시에 바뀌고, 00:30(한국 시간)에 받아와서 화면에 바로 반영해요.
-// 위키 · 규칙 페이지는 질문 도우미가 찾아볼 수 있게 받아서 PC에 저장해 둬요(12시간마다 새로).
+// 요리 시세는 매일 00시에 바뀌고, 00:30(한국 시간)에 받아와서 화면에 바로 반영합니다.
+// 위키 · 규칙 페이지는 질문 도우미가 찾아볼 수 있게 받아서 PC에 저장해 둡니다(12시간마다 새로).
 const COOK_API = "https://mcng.kr/api/v1/public/cook/prices";
 const COOK_HISTORY = "https://mcng.kr/data/cook-price-history.json";
 const KB_PAGES = { wiki: "https://mcng.kr/wiki", rules: "https://mcng.kr/rules" };
@@ -1753,7 +1753,7 @@ async function getJsonFrom(url) {
 async function refreshCook(reason) {
   try {
     const [p, h] = await Promise.all([getJsonFrom(COOK_API), getJsonFrom(COOK_HISTORY).catch(() => null)]);
-    if (!p || !p.success || !p.data) throw new Error("시세 응답 형식이 달라요");
+    if (!p || !p.success || !p.data) throw new Error("시세 응답 형식이 다릅니다");
     cook.prices = p.data;
     if (h && h.days) cook.history = h;
     cook.fetchedAt = Date.now();
@@ -1843,7 +1843,7 @@ async function refreshRankings() {
     const r = await fetch(`${RANK_URL}?t=${Date.now()}`, { headers: { Accept: "application/json", "User-Agent": USER_AGENT }, timeout: 15000 });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-    if (!data || typeof data !== "object" || !data.updated) throw new Error("랭킹 형식이 달라요");
+    if (!data || typeof data !== "object" || !data.updated) throw new Error("랭킹 형식이 다릅니다");
     rank = { data, fetchedAt: Date.now(), error: null };
     writeFile(rankFile, JSON.stringify(rank));
   } catch (err) {
@@ -1917,7 +1917,7 @@ async function refreshImages(force) {
       const st = fs.existsSync(f) ? fs.statSync(f) : null;
       if (st && !force && Date.now() - st.mtimeMs < 24 * 3600 * 1000) continue;
       const buf = await downloadBuffer(url);
-      if (buf.length < 100 || buf.slice(1, 4).toString() !== "PNG") throw new Error("PNG 가 아니에요");
+      if (buf.length < 100 || buf.slice(1, 4).toString() !== "PNG") throw new Error("PNG 가 아닙니다");
       writeFile(f, buf);
       changed = true;
     } catch (err) {
@@ -1968,7 +1968,7 @@ ipcMain.handle("picks:get", () => {
 
 let picksBusy = false;
 ipcMain.handle("picks:install-all", async (_e, kind) => {
-  if (picksBusy) return { ok: false, error: "이미 설치하는 중이에요." };
+  if (picksBusy) return { ok: false, error: "이미 설치하는 중입니다." };
   const list = MANGO_PICKS[kind];
   if (!list) return { ok: false };
   picksBusy = true;
@@ -2532,10 +2532,10 @@ async function updateBuiltinModFromRelease() {
     const dl = await fetch(asset.browser_download_url, { headers: { "User-Agent": USER_AGENT }, timeout: 60000 });
     if (!dl.ok) throw new Error(`받기 HTTP ${dl.status}`);
     const buf = await dl.buffer();
-    if (buf.length !== asset.size) throw new Error(`크기가 달라요 (${buf.length} / ${asset.size})`);
+    if (buf.length !== asset.size) throw new Error(`크기가 다릅니다 (${buf.length} / ${asset.size})`);
     const digest = String(asset.digest || "");
-    if (digest.startsWith("sha256:") && require("crypto").createHash("sha256").update(buf).digest("hex") !== digest.slice(7)) throw new Error("해시가 달라요");
-    if (!new AdmZip(buf).getEntry("fabric.mod.json")) throw new Error("모드 jar 가 아니에요");
+    if (digest.startsWith("sha256:") && require("crypto").createHash("sha256").update(buf).digest("hex") !== digest.slice(7)) throw new Error("해시가 다릅니다");
+    if (!new AdmZip(buf).getEntry("fabric.mod.json")) throw new Error("모드 jar 가 아닙니다");
     await fsp.mkdir(dir, { recursive: true });
     await fsp.writeFile(dest + ".part", buf);
     for (const f of fs.readdirSync(dir)) if (f.startsWith(BUILTIN_PREFIX) && f.endsWith(`+mc${v}.jar`) && f !== name) await fsp.rm(path.join(dir, f), { force: true });
@@ -2694,7 +2694,7 @@ function novaSignKey() {
   try {
     const f = path.join(__dirname, "nova-sig.json");
     if (!fs.existsSync(f)) {
-      log("[노바 모드] nova-sig.json 이 없어서 새 서명(sig2)을 못 붙임 - 모드 기능이 꺼질 수 있어요");
+      log("[노바 모드] nova-sig.json 이 없어서 새 서명(sig2)을 못 붙임 - 모드 기능이 꺼질 수 있습니다");
       return null;
     }
     const { parts } = JSON.parse(fs.readFileSync(f, "utf-8"));

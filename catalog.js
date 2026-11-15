@@ -16,7 +16,7 @@ const SERVER = {
 };
 
 // 화면에 쓰는 사이트 이미지 - 너굴마을 운영진 허락 받음(비상업적 사용).
-// 런처가 하루 한 번 받아서 %APPDATA%\Nugulient\tools\images 에 저장해 두고, 인터넷이 없어도 그걸 보여줘요.
+// 런처가 하루 한 번 받아서 %APPDATA%\Nugulient\tools\images 에 저장해 두고, 인터넷이 없어도 그걸 보여 줍니다.
 const IMAGES = {
   logo: `${SITE}/assets/img/logo.png`,
   panorama: `${SITE}/assets/img/server-panorama.png?v=20260919`,
@@ -113,7 +113,7 @@ const NEOGUL_MODS = [
     id: "skillkeydown",
     name: "스킬 키 세팅",
     sub: "NG-SkillKeydown",
-    desc: "게임 안에서 /스킬키세팅 으로 스킬마다 원하는 키를 지정해요.",
+    desc: "게임 안에서 /스킬키세팅 으로 스킬마다 원하는 키를 지정합니다.",
     wiki: wiki("편의기능-스킬키세팅"),
     downloads: [{ url: `${SITE}/mods/ng-skillkeydown.zip`, kind: "zip" }],
     patterns: ["^ng-skillkeydown-.*\\.jar$"],
@@ -122,7 +122,7 @@ const NEOGUL_MODS = [
     id: "voice",
     name: "보이스챗",
     sub: "Simple Voice Chat + 너굴마을 보이스",
-    desc: "처음 접속하면 나오는 안내 창에서 마이크·스피커·말하기 방식을 정하면 돼요.",
+    desc: "처음 접속하면 나오는 안내 창에서 마이크·스피커·말하기 방식을 정하면 됩니다.",
     wiki: wiki("편의기능-보이스챗"),
     downloads: [
       { url: `${SITE}/mods/ng-voiceaddon.zip?v=1.10.0`, kind: "zip" },
@@ -136,7 +136,7 @@ const NEOGUL_MODS = [
     id: "koreanchat",
     name: "한글채팅",
     sub: "NG-KoreanChat 2.1.4",
-    desc: "채팅창 왼쪽에 한/A 가 보이면 적용된 거예요. 한/영 키나 오른쪽 Alt 로 전환해요.",
+    desc: "채팅창 왼쪽에 한/A 가 보이면 적용된 것입니다. 한/영 키나 오른쪽 Alt 로 전환합니다.",
     wiki: wiki("편의기능-한글채팅"),
     downloads: [{ url: `${SITE}/mods/ng-koreanchat-2.1.4.jar`, kind: "jar" }],
     patterns: ["^ng-koreanchat-.*\\.jar$"],
@@ -145,7 +145,7 @@ const NEOGUL_MODS = [
     id: "quietfishing",
     name: "낚시 음소거",
     sub: "NG-QuietFishing 1.0.0",
-    desc: "낚시터에서 다른 사람의 낚시 소리는 안 들리고 내 소리만 들려요.",
+    desc: "낚시터에서 다른 사람의 낚시 소리는 안 들리고 내 소리만 들립니다.",
     wiki: wiki("편의기능-낚시음소거"),
     downloads: [{ url: `${SITE}/mods/ng-quietfishing-1.0.0.jar`, kind: "jar" }],
     patterns: ["^ng-quietfishing-.*\\.jar$"],
@@ -156,7 +156,7 @@ const NEOGUL_MODS = [
 const NEOGUL_RESOURCEPACK = {
   name: "너굴마을 리소스팩",
   sub: "수동 적용용 · 약 30MB",
-  desc: "접속하면 자동으로 받아져요. 글자나 아이템이 깨질 때만 설치하세요.",
+  desc: "접속하면 자동으로 받아집니다. 글자나 아이템이 깨질 때만 설치하십시오.",
   url: `${SITE}/mods/neogul-resourcepack.zip`,
   fileName: "neogul-resourcepack.zip",
 };
@@ -164,7 +164,7 @@ const NEOGUL_RESOURCEPACK = {
 
 // 망고's pick - 노바 클라이언트 "너굴마을" 프로필에 넣어 쓰던 모드 · 리소스팩 · 쉐이더 전부 (Modrinth)
 // id 는 Modrinth 프로젝트 id (메타가 없던 Mod Menu · Chat Heads 는 slug)
-// 너굴마을 전용 모드(ng-*), Simple Voice Chat, 노바 내장 모드는 위 NEOGUL_MODS 쪽에서 받아요.
+// 너굴마을 전용 모드(ng-*), Simple Voice Chat, 노바 내장 모드는 위 NEOGUL_MODS 쪽에서 받습니다.
 const MANGO_PICKS = {
   mod: [
     { id: "4I1XuqiY", title: "[EMF] Entity Model Features", icon: "https://cdn.modrinth.com/data/4I1XuqiY/6e5bbd0d06b1741bfdab6c0cfab6de8fdaf0064c_96.webp" },
