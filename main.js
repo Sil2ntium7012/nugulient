@@ -247,6 +247,7 @@ if (!gotLock) {
     setupAutoUpdate();
     startCookSchedule();
     startSiteInfoSchedule();
+    startBuiltinModSchedule();
   });
   app.on("window-all-closed", () => app.quit());
   app.on("will-quit", () => { try { stopNowPlayingBridge(); } catch (_) {} });
@@ -2511,7 +2512,18 @@ function builtinModSource() {
 // (Nova Client 와 같은 곳). 바뀌었으면 %APPDATA%\Nugulient\novamod 에 받아 두고, builtinModSource() 가 그걸 먼저 씀.
 const NOVA_MOD_RELEASE_URL = "https://api.github.com/repos/Sil2ntium7012/nova-mod/releases/tags/latest";
 
-async function updateBuiltinModFromRelease() {
+// 미리 받아 두기: 런처가 켜져 있는 동안(게임 중에도) 10분마다 확인해서 %APPDATA%\Nugulient\novamod 에 받아 둠.
+// 게임이 쓰는 mods 폴더는 건드리지 않으므로 게임 중에도 안전하고, 다음 PLAY(재접) 때는 복사만 하면 됨.
+let builtinModBusy = null;
+function updateBuiltinModFromRelease(background) {
+  if (!builtinModBusy) builtinModBusy = updateBuiltinModOnce(background).finally(() => { builtinModBusy = null; });
+  return builtinModBusy; // 이미 받는 중이면 그걸 기다림 (PLAY 가 눌려도 두 번 받지 않음)
+}
+function startBuiltinModSchedule() {
+  updateBuiltinModFromRelease(true);
+  setInterval(() => updateBuiltinModFromRelease(true), 10 * 60 * 1000);
+}
+async function updateBuiltinModOnce(background) {
   const meta = store.get("novaModRelease") || {};
   try {
     const headers = { "User-Agent": USER_AGENT, Accept: "application/vnd.github+json" };
@@ -2528,7 +2540,7 @@ async function updateBuiltinModFromRelease() {
     const dir = path.join(ROOT, "novamod");
     const dest = path.join(dir, name);
     if (meta.key === key && fs.existsSync(dest)) { store.set("novaModRelease", { ...meta, etag: res.headers.get("etag") || meta.etag }); return; }
-    progress("fabric", 78, "너굴라이언트 모드 업데이트 받는 중");
+    if (!background) progress("fabric", 78, "너굴라이언트 모드 업데이트 받는 중");
     const dl = await fetch(asset.browser_download_url, { headers: { "User-Agent": USER_AGENT }, timeout: 60000 });
     if (!dl.ok) throw new Error(`받기 HTTP ${dl.status}`);
     const buf = await dl.buffer();
@@ -2542,6 +2554,9 @@ async function updateBuiltinModFromRelease() {
     await fsp.rename(dest + ".part", dest);
     store.set("novaModRelease", { key, etag: res.headers.get("etag") || null, at: Date.now() });
     log(`[내장 모드] 새 버전 받음: ${name} (${asset.updated_at})`);
+    if (background) {
+      send("toast", { msg: gameProcess ? "새 모드를 미리 받아 두었습니다. 게임을 껐다가 다시 PLAY 하면 적용됩니다." : "새 모드를 받아 두었습니다. 다음 PLAY 부터 적용됩니다.", kind: "ok" });
+    }
   } catch (err) {
     log("[내장 모드] 업데이트 확인 실패(있던 jar 사용): " + (err?.message || err));
   }
