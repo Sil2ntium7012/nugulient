@@ -2019,6 +2019,194 @@ ipcMain.handle("neogul:install-all", async () => {
 });
 
 
+// ─── 다른 런처에서 프로필 가져오기 (26.1.2 Fabric) ────────────────────────────
+// CurseForge · Modrinth App · Prism/MultiMC 계열 · ATLauncher · 공식 런처(.minecraft) · 노바 클라이언트의
+// 게임 폴더를 찾아서 모드 · 리소스팩 · 쉐이더 · 설정을 너굴라이언트 게임 폴더로 "복사"함(원본은 건드리지 않음).
+const IMPORT_SKIP_MOD = /^(builtin-|novaclient-mod-|lunaslight-|ng-modchecker)/i; // 우리 런처가 넣는 것 · 없어진 모드체커
+function readJsonSafe(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf-8")); } catch (_) { return null; }
+}
+function listDirs(dir) {
+  try { return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => path.join(dir, d.name)); } catch (_) { return []; }
+}
+// 그 폴더에서 마지막으로 켠 게임의 버전 · 로더를 로그 첫머리에서 읽음
+function versionFromLog(gameDir) {
+  try {
+    const fd = fs.openSync(path.join(gameDir, "logs", "latest.log"), "r");
+    const buf = Buffer.alloc(16384);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    const head = buf.slice(0, n).toString("utf-8");
+    let m = head.match(/Loading Minecraft (\S+) with (Fabric|Quilt) Loader/i);
+    if (m) return { version: m[1], loader: m[2].toLowerCase() };
+    m = head.match(/--version,? ?(\S*?forge\S*)/i) || head.match(/(NeoForge|Forge Mod Loader|ModLauncher)/i);
+    if (m) return { version: null, loader: "forge" };
+  } catch (_) {}
+  return { version: null, loader: null };
+}
+function countIn(dir, rx) {
+  try { return fs.readdirSync(dir).filter((n) => rx.test(n)).length; } catch (_) { return 0; }
+}
+function describeInstance(source, name, gameDir, meta = {}) {
+  if (!fs.existsSync(gameDir)) return null;
+  if (path.resolve(gameDir).toLowerCase() === path.resolve(GAME_DIR).toLowerCase()) return null;
+  const log = meta.version && meta.loader ? {} : versionFromLog(gameDir);
+  const version = meta.version || log.version || null;
+  const loader = (meta.loader || log.loader || "").toLowerCase() || null;
+  const counts = {
+    mods: countIn(path.join(gameDir, "mods"), /\.jar(\.disabled)?$/i),
+    resourcepacks: countIn(path.join(gameDir, "resourcepacks"), /./),
+    shaders: countIn(path.join(gameDir, "shaderpacks"), /^(?!.*\.txt$).+/i),
+    settings: fs.existsSync(path.join(gameDir, "options.txt")),
+  };
+  if (!counts.mods && !counts.resourcepacks && !counts.shaders && !counts.settings) return null;
+  let ok = true, reason = "";
+  if (version && version !== SERVER.mcVersion) { ok = false; reason = `${version} 버전이라 가져올 수 없습니다`; }
+  else if (loader && loader !== "fabric") { ok = false; reason = `${loader === "forge" ? "Forge" : loader} 프로필이라 가져올 수 없습니다`; }
+  else if (!version) reason = "버전을 확인하지 못했습니다 (26.1.2 Fabric 이 맞는지 확인해 주십시오)";
+  return { source, name, dir: gameDir, version, loader, counts, ok, reason };
+}
+function scanImportSources() {
+  const appData = app.getPath("appData");
+  const home = app.getPath("home");
+  const out = [];
+  const push = (x) => { if (x) out.push(x); };
+  // CurseForge
+  for (const root of [path.join(home, "curseforge", "minecraft", "Instances"), path.join(home, "Documents", "curseforge", "minecraft", "Instances")]) {
+    for (const d of listDirs(root)) {
+      const j = readJsonSafe(path.join(d, "minecraftinstance.json")) || {};
+      const lname = String(j.baseModLoader?.name || "").toLowerCase();
+      push(describeInstance("CurseForge", j.name || path.basename(d), d, {
+        version: j.gameVersion || j.baseModLoader?.minecraftVersion || null,
+        loader: lname.includes("fabric") ? "fabric" : lname.includes("quilt") ? "quilt" : lname ? "forge" : null,
+      }));
+    }
+  }
+  // Modrinth App (버전 정보는 앱 DB 안에 있어서 로그로 확인)
+  for (const root of [path.join(appData, "ModrinthApp", "profiles"), path.join(appData, "com.modrinth.theseus", "profiles")]) {
+    for (const d of listDirs(root)) push(describeInstance("Modrinth", path.basename(d), d));
+  }
+  // Prism · MultiMC · PolyMC 계열
+  for (const [label, root] of [["Prism Launcher", path.join(appData, "PrismLauncher", "instances")], ["PolyMC", path.join(appData, "PolyMC", "instances")], ["MultiMC", path.join(appData, "MultiMC", "instances")]]) {
+    for (const d of listDirs(root)) {
+      const game = [path.join(d, "minecraft"), path.join(d, ".minecraft")].find((g) => fs.existsSync(g));
+      if (!game) continue;
+      const comps = readJsonSafe(path.join(d, "mmc-pack.json"))?.components || [];
+      const uid = (u) => comps.find((c) => c.uid === u);
+      let name = path.basename(d);
+      try { name = (fs.readFileSync(path.join(d, "instance.cfg"), "utf-8").match(/^name=(.+)$/m) || [])[1]?.trim() || name; } catch (_) {}
+      push(describeInstance(label, name, game, {
+        version: uid("net.minecraft")?.version || null,
+        loader: uid("net.fabricmc.fabric-loader") ? "fabric" : uid("org.quiltmc.quilt-loader") ? "quilt" : uid("net.minecraftforge") || uid("net.neoforged") ? "forge" : null,
+      }));
+    }
+  }
+  // ATLauncher
+  for (const d of listDirs(path.join(appData, "ATLauncher", "instances"))) {
+    const j = readJsonSafe(path.join(d, "instance.json")) || {};
+    const t = String(j.launcher?.loaderVersion?.type || "").toLowerCase();
+    push(describeInstance("ATLauncher", j.launcher?.name || path.basename(d), d, { version: j.id || null, loader: t.includes("fabric") ? "fabric" : t ? "forge" : null }));
+  }
+  // 노바 클라이언트 프로필
+  for (const d of listDirs(path.join(appData, "NovaClient", "profiles"))) push(describeInstance("노바 클라이언트", path.basename(d), d));
+  // 공식 런처
+  push(describeInstance("공식 런처", ".minecraft", path.join(appData, ".minecraft")));
+  // 가져올 수 있는 것 먼저, 그 안에서는 모드 많은 순
+  return out.sort((a, b) => (b.ok - a.ok) || ((b.version === SERVER.mcVersion) - (a.version === SERVER.mcVersion)) || (b.counts.mods - a.counts.mods));
+}
+function fabricModInfo(file) {
+  try {
+    const entry = new AdmZip(file).getEntry("fabric.mod.json");
+    if (!entry) return null;
+    const j = JSON.parse(entry.getData().toString("utf-8").replace(/[\u0000-\u001f]+/g, " "));
+    return { id: String(j.id || ""), name: String(j.name || j.id || "") };
+  } catch (_) {
+    return null;
+  }
+}
+async function copyNew(src, dest) {
+  if (fs.existsSync(dest)) return false;
+  await fsp.cp(src, dest, { recursive: true, force: false, errorOnExist: false });
+  return true;
+}
+async function importProfile(dir, opts = {}) {
+  if (gameProcess || launching) return { ok: false, error: "게임을 끈 다음에 해 주십시오." };
+  if (!dir || !fs.existsSync(dir)) return { ok: false, error: "폴더를 찾지 못했습니다." };
+  const res = { ok: true, mods: 0, resourcepacks: 0, shaders: 0, settings: false, skipped: [] };
+  try {
+    if (opts.mods) {
+      const have = new Set();
+      for (const f of await modFiles()) { const info = fabricModInfo(path.join(DIRS.mod, f)); if (info?.id) have.add(info.id); }
+      const srcDir = path.join(dir, "mods");
+      for (const f of (await fsp.readdir(srcDir).catch(() => [])).filter((n) => /\.jar(\.disabled)?$/i.test(n))) {
+        const base = plain(f);
+        if (IMPORT_SKIP_MOD.test(base)) continue;
+        const info = fabricModInfo(path.join(srcDir, f));
+        if (!info) { res.skipped.push(`${base} (Fabric 모드가 아님)`); continue; }
+        if (info.id && have.has(info.id)) continue; // 이미 있는 모드
+        if (fs.existsSync(path.join(DIRS.mod, base)) || fs.existsSync(path.join(DIRS.mod, base + ".disabled"))) continue;
+        await fsp.copyFile(path.join(srcDir, f), path.join(DIRS.mod, safeName(f)));
+        setInstalledMeta(base, { title: info.name || base.replace(/\.jar$/i, ""), kind: "mod", imported: true });
+        if (info.id) have.add(info.id);
+        res.mods++;
+      }
+    }
+    if (opts.resourcepacks) {
+      const srcDir = path.join(dir, "resourcepacks");
+      for (const f of await fsp.readdir(srcDir).catch(() => [])) {
+        if (await copyNew(path.join(srcDir, f), path.join(DIRS.resourcepack, safeName(f)))) res.resourcepacks++;
+      }
+    }
+    if (opts.shaders) {
+      const srcDir = path.join(dir, "shaderpacks");
+      for (const f of await fsp.readdir(srcDir).catch(() => [])) {
+        if ((await copyNew(path.join(srcDir, f), path.join(DIRS.shader, safeName(f)))) && !/\.txt$/i.test(f)) res.shaders++;
+      }
+    }
+    if (opts.settings) {
+      // 조작키 · 화면 설정(options.txt): 그쪽 값을 쓰고, 그쪽에 없는 줄만 우리 것을 남김
+      const src = path.join(dir, "options.txt");
+      if (fs.existsSync(src)) {
+        const SKIP = new Set(opts.resourcepacks ? [] : ["resourcePacks", "incompatibleResourcePacks"]);
+        const key = (l) => l.slice(0, l.indexOf(":"));
+        const theirs = fs.readFileSync(src, "utf-8").split(/\r?\n/).filter((l) => l.includes(":") && !SKIP.has(key(l)));
+        const theirKeys = new Set(theirs.map(key));
+        const mine = readOptions().filter((l) => l.trim() !== "" && l.includes(":") && !theirKeys.has(key(l)));
+        await fsp.writeFile(OPTIONS, [...theirs, ...mine].join("\n") + "\n", "utf-8");
+        store.set("mcOptionsImported", "profile-import");
+        res.settings = true;
+      }
+      // 모드 설정(config) · 쉐이더 설정: 이미 있는 파일은 덮지 않음
+      for (const name of ["config", "iris.properties"]) {
+        const s = path.join(dir, name);
+        if (fs.existsSync(s)) await fsp.cp(s, path.join(GAME_DIR, name), { recursive: true, force: false, errorOnExist: false }).catch(() => {});
+      }
+    }
+    log(`[가져오기] ${dir} → 모드 ${res.mods} · 리소스팩 ${res.resourcepacks} · 쉐이더 ${res.shaders} · 설정 ${res.settings ? "O" : "X"} · 건너뜀 ${res.skipped.length}`);
+    send("neogul:updated", {});
+    return res;
+  } catch (err) {
+    log("[가져오기] 실패: " + (err?.stack || err));
+    return { ...res, ok: false, error: String(err?.message || err) };
+  }
+}
+ipcMain.handle("import:scan", () => {
+  const list = scanImportSources();
+  const first = !store.get("importOffered");
+  return { list, first };
+});
+ipcMain.handle("import:offered", () => { store.set("importOffered", Date.now()); return true; });
+ipcMain.handle("import:pick-folder", async () => {
+  const r = await dialog.showOpenDialog(mainWindow, { title: "가져올 게임 폴더 (mods 폴더가 들어 있는 폴더)", properties: ["openDirectory"] });
+  if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true };
+  let dir = r.filePaths[0];
+  if (/^(mods|resourcepacks|shaderpacks|config)$/i.test(path.basename(dir))) dir = path.dirname(dir); // mods 폴더를 골랐으면 그 위
+  const item = describeInstance("직접 고른 폴더", path.basename(dir), dir);
+  if (!item) return { ok: false, error: "그 폴더에서 모드 · 리소스팩 · 쉐이더 · 설정을 찾지 못했습니다." };
+  return { ok: true, item };
+});
+ipcMain.handle("import:run", (_e, dir, opts) => importProfile(dir, opts));
+
 const { spawn } = require("child_process");
 const lunaTwinPath = (p) => path.join(path.dirname(p), path.basename(p).replace(/^\.nova-/, ".luna-"));
 // ↓ Nova Client main.js 의 "듣고 있는 노래" 브리지를 그대로 옮김 (영상 PIP 만 뺌)

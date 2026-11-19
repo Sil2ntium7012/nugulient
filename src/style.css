@@ -684,3 +684,21 @@ img.ri-icon { object-fit: contain; background: var(--bg-3); }
 .shot:hover { border-color: var(--accent); }
 .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .shot span { position: absolute; left: 6px; bottom: 6px; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; }
+
+/* 다른 런처에서 프로필 가져오기 */
+.importer { width: 600px; max-height: 640px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.importer h2 { font-size: 19px; font-weight: 800; padding-right: 40px; }
+.imp-list { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 80px; max-height: 330px; }
+.imp-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: var(--r-md); border: 1px solid var(--border-soft); background: var(--bg-2); text-align: left; cursor: pointer; }
+.imp-item:hover { border-color: var(--border); }
+.imp-item.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg-2)); }
+.imp-item.off { opacity: .5; cursor: not-allowed; }
+.imp-item .grow { min-width: 0; }
+.imp-item b { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-item small { color: var(--text-2); font-size: 12px; }
+.imp-item small.warn { color: var(--accent); }
+.imp-src { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--bg-3); color: var(--text-1); white-space: nowrap; }
+.imp-opts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-1); }
+.imp-opts label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.imp-opts input { accent-color: var(--accent); }
+.imp-actions { display: flex; align-items: center; gap: 8px; }

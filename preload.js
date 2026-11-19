@@ -105,6 +105,12 @@ contextBridge.exposeInMainWorld("nugul", {
   },
   onNeogulUpdated: on("neogul:updated"),
   onToast: on("toast"),
+  importer: {
+    scan: () => invoke("import:scan"),
+    offered: () => invoke("import:offered"),
+    pickFolder: () => invoke("import:pick-folder"),
+    run: (dir, opts) => invoke("import:run", dir, opts),
+  },
   rec: { get: () => invoke("rec:get"), onDone: on("rec:done") },
   tools: {
     screenshots: () => invoke("tools:screenshots"),

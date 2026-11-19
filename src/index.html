@@ -451,6 +451,28 @@
   </div>
 </div>
 
+<!-- 다른 런처에서 프로필 가져오기 -->
+<div class="modal" id="importModal" hidden>
+  <div class="modal-card importer">
+    <button class="modal-x" data-close><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+    <h2>다른 런처에서 프로필 가져오기</h2>
+    <p class="muted small" id="importSub">쓰던 26.1.2 Fabric 프로필의 모드 · 리소스팩 · 쉐이더 · 설정을 복사해 옵니다. 원래 프로필은 그대로 둡니다.</p>
+    <div class="imp-list" id="importList"></div>
+    <div class="imp-opts">
+      <label><input type="checkbox" id="impMods" checked /> 모드</label>
+      <label><input type="checkbox" id="impRp" checked /> 리소스팩</label>
+      <label><input type="checkbox" id="impShader" checked /> 쉐이더</label>
+      <label><input type="checkbox" id="impSettings" checked /> 설정 (조작키 · 모드 설정)</label>
+    </div>
+    <div class="imp-actions">
+      <button class="btn ghost sm" id="impPick">폴더 직접 고르기</button>
+      <span class="grow"></span>
+      <button class="btn ghost" data-close>나중에</button>
+      <button class="btn primary" id="impRun" disabled>가져오기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 설정 -->
 <div class="modal" id="settingsModal" hidden>
   <div class="modal-card settings">
@@ -473,6 +495,10 @@
         <div class="set-row">
           <div><b>창 크기</b><p class="muted small">전체화면이 꺼져 있을 때 쓰는 크기</p></div>
           <div class="res-ctl"><input type="number" id="setWidth" min="640" max="7680" /> × <input type="number" id="setHeight" min="480" max="4320" /></div>
+        </div>
+        <div class="set-row">
+          <div><b>다른 런처에서 프로필 가져오기</b><p class="muted small">CurseForge · Modrinth · Prism · 공식 런처 등의 26.1.2 Fabric 프로필</p></div>
+          <button class="btn ghost sm" id="setImport">가져오기</button>
         </div>
         <div class="set-row">
           <div><b>전체화면으로 시작</b></div>

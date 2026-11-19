@@ -1538,3 +1538,68 @@ $("#toolShots").addEventListener("click", async () => {
   }).join("");
   $$("[data-shot]", grid).forEach((b) => (b.onclick = () => api.tools.openScreenshot(b.dataset.shot)));
 });
+
+// ─── 다른 런처에서 프로필 가져오기 ────────────────────────────────────────────
+let IMP = { list: [], sel: -1 };
+function renderImportList() {
+  const box = $("#importList");
+  if (!IMP.list.length) {
+    box.innerHTML = '<div class="empty">가져올 프로필을 찾지 못했습니다.<br/><span class="small">"폴더 직접 고르기"로 게임 폴더(mods 폴더가 들어 있는 폴더)를 골라 주십시오.</span></div>';
+  } else {
+    box.innerHTML = IMP.list.map((it, i) => {
+      const c = it.counts;
+      const parts = [c.mods ? `모드 ${c.mods}` : "", c.resourcepacks ? `리소스팩 ${c.resourcepacks}` : "", c.shaders ? `쉐이더 ${c.shaders}` : "", c.settings ? "설정" : ""].filter(Boolean).join(" · ");
+      return `<button class="imp-item ${it.ok ? "" : "off"} ${i === IMP.sel ? "sel" : ""}" data-imp="${i}" ${it.ok ? "" : "disabled"}>
+        <span class="imp-src">${esc(it.source)}</span>
+        <span class="grow"><b>${esc(it.name)}${it.version ? ` · ${esc(it.version)}` : ""}</b>
+        <small class="${it.reason && it.ok ? "warn" : ""}">${esc(it.reason || parts)}</small>${it.reason && it.ok ? `<br/><small>${esc(parts)}</small>` : ""}</span>
+      </button>`;
+    }).join("");
+  }
+  $("#impRun").disabled = IMP.sel < 0;
+  $$("[data-imp]", box).forEach((b) => (b.onclick = () => { IMP.sel = Number(b.dataset.imp); renderImportList(); }));
+}
+async function openImport(auto) {
+  const r = await api.importer.scan();
+  IMP.list = r.list || [];
+  const usable = IMP.list.filter((it) => it.ok);
+  if (auto) {
+    // 처음 한 번만: 가져올 만한 프로필이 있을 때만 물어봄
+    if (!r.first) return;
+    api.importer.offered();
+    if (!usable.length) return;
+  }
+  IMP.sel = IMP.list.findIndex((it) => it.ok && it.version);
+  if (IMP.sel < 0 && usable.length === 1) IMP.sel = IMP.list.indexOf(usable[0]);
+  renderImportList();
+  $("#importModal").hidden = false;
+}
+$("#setImport").addEventListener("click", () => { $("#settingsModal").hidden = true; openImport(false); });
+$("#impPick").addEventListener("click", async () => {
+  const r = await api.importer.pickFolder();
+  if (r.cancelled) return;
+  if (!r.ok) return toast(r.error || "폴더를 읽지 못했습니다.", "err");
+  if (!r.item.ok) return toast(r.item.reason, "err");
+  IMP.list = [r.item, ...IMP.list.filter((it) => it.dir !== r.item.dir)];
+  IMP.sel = 0;
+  renderImportList();
+});
+$("#impRun").addEventListener("click", async () => {
+  const it = IMP.list[IMP.sel];
+  if (!it) return;
+  const opts = { mods: $("#impMods").checked, resourcepacks: $("#impRp").checked, shaders: $("#impShader").checked, settings: $("#impSettings").checked };
+  if (!opts.mods && !opts.resourcepacks && !opts.shaders && !opts.settings) return toast("가져올 항목을 하나 이상 골라 주십시오.", "err");
+  const btn = $("#impRun");
+  btn.disabled = true;
+  btn.textContent = "가져오는 중…";
+  const r = await api.importer.run(it.dir, opts);
+  btn.textContent = "가져오기";
+  btn.disabled = false;
+  if (!r.ok) return toast(r.error || "가져오지 못했습니다.", "err");
+  $("#importModal").hidden = true;
+  const parts = [r.mods ? `모드 ${r.mods}개` : "", r.resourcepacks ? `리소스팩 ${r.resourcepacks}개` : "", r.shaders ? `쉐이더 ${r.shaders}개` : "", r.settings ? "설정" : ""].filter(Boolean);
+  toast(parts.length ? `${parts.join(" · ")}을(를) 가져왔습니다. 다음 PLAY 부터 적용됩니다.` : "새로 가져올 것이 없습니다. (이미 다 있습니다)", "ok");
+  if (r.skipped?.length) toast(`Fabric 모드가 아니라서 ${r.skipped.length}개는 건너뛰었습니다.`);
+  if ($("#page-mods").classList.contains("active")) { try { renderInstalled?.(); } catch (_) {} }
+});
+setTimeout(() => openImport(true).catch(() => {}), 1500);
