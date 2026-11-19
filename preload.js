@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld("nugul", {
 
   auth: {
     init: () => invoke("auth:init"),
-    login: () => invoke("auth:login"),
+    login: (mode) => invoke("auth:login", mode),
     logout: () => invoke("auth:logout"),
   },
 

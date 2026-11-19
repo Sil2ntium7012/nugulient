@@ -420,10 +420,15 @@ async function checkOwnership(accessToken) {
   }
 }
 
-ipcMain.handle("auth:login", async () => {
+// mode: 기본은 런처 안 로그인 창, "browser" 는 PC 의 Edge/Chrome 창(로그인 창에서 오류가 날 때 쓰는 다른 길)
+ipcMain.handle("auth:login", async (_e, mode) => {
   try {
     const auth = new Auth("select_account");
-    const xbox = await auth.launch("electron", { width: 500, height: 650, resizable: false });
+    // 로그인 창은 매번 새 세션으로 엶: 예전 로그인 쿠키가 남아 있으면 마이크로소프트가
+    // "Bad user credential or too many signin attempts" 만 계속 보여 주는 경우가 있음
+    const xbox = mode === "browser"
+      ? await auth.launch("raw")
+      : await auth.launch("electron", { width: 500, height: 650, resizable: false, webPreferences: { partition: "ms-login-" + Date.now() } });
     const token = await xbox.getMinecraft();
     const mclcAuth = token.mclc();
     const own = await checkOwnership(mclcAuth?.access_token);
@@ -437,7 +442,8 @@ ipcMain.handle("auth:login", async () => {
   } catch (err) {
     const code = loginErrorCode(err);
     log("[로그인] 실패: " + code + (err?.response?.status ? ` (HTTP ${err.response.status})` : "") + (err?.stack ? " | " + String(err.stack).split("\n")[0] : ""));
-    if (/cancel|error\.gui\.closed/i.test(code)) return { ok: false, cancelled: true };
+    if (/cancel|error\.gui\.closed/i.test(code)) return { ok: false, cancelled: true, mode: mode || "window" };
+    if (mode === "browser" && /noBrowser/i.test(code)) return { ok: false, error: "Edge 나 Chrome 을 찾지 못했습니다. 런처 안 로그인 창으로 다시 해 주십시오." };
     return { ok: false, error: loginErrorText(code) };
   }
 });

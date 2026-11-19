@@ -113,8 +113,10 @@ function renderAccount() {
   }
 }
 
-async function login() {
-  const r = await api.auth.login();
+let loginHelpToast = null;
+async function login(mode) {
+  if (loginHelpToast) { loginHelpToast.remove(); loginHelpToast = null; }
+  const r = await api.auth.login(mode);
   if (r.ok) {
     profile = r.profile;
     currentSkin = null;
@@ -125,6 +127,13 @@ async function login() {
     return true;
   }
   if (!r.cancelled) toast(r.error || "로그인하지 못했습니다.", "err");
+  // 로그인 창에서 막혔을 때(오류 화면을 보고 창을 닫은 경우 포함) 브라우저 창으로 하는 길을 알려 줌
+  if (mode !== "browser") {
+    loginHelpToast = toastAction("로그인 창에서 오류가 났다면 브라우저 창으로 로그인해 보십시오.", "브라우저로 로그인", async () => {
+      loginHelpToast = null;
+      if (await login("browser")) toast("로그인되었습니다. PLAY 를 눌러 주십시오.", "ok");
+    });
+  }
   return false;
 }
 
