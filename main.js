@@ -845,6 +845,7 @@ ipcMain.handle("launch:start", async () => {
       log("게임 종료, 코드 " + code);
       gameProcess = null;
       stopNowPlayingBridge();
+      stopReloginWatcher();
       if (pendingAutoInstall && updateState.status === "ready") {
         pendingAutoInstall = false;
         autoInstallSoon(updateState.version);
@@ -860,6 +861,7 @@ ipcMain.handle("launch:start", async () => {
     progress("game", 0, "게임 파일 확인 중");
     gameProcess = await launcher.launch(opts);
     startNowPlayingBridge(GAME_DIR); // 듣고 있는 노래를 게임 폴더에 적어 줌 (모드가 읽음)
+    startReloginWatcher(GAME_DIR); // 게임 안 [세션 새로고침 후 재접속] 요청 처리
     if (!gameProcess) throw new Error("게임을 실행하지 못했습니다. 로그를 확인해 주십시오.");
     progress("done", 100, "너굴마을로 접속 중");
     send("launch:started", {});
@@ -2693,6 +2695,73 @@ function stopNowPlayingBridge() {
   }
 }
 
+// ─── 세션 새로고침 후 재접속 (게임 안 "세션이 잘못됨" 화면의 버튼) ─────────────
+// Nova Client 와 같은 약속: 모드가 .luna-relogin.json{action:"refresh"} 를 쓰면, 저장된 계정의 토큰을 강제로 새로 받아
+// .luna-relogin-result.json{ts, sig, sig2, uuid, name, accessToken} 에 써 준다. 모드는 서명을 확인하고 게임 세션을
+// 그 토큰으로 바꾼 뒤 바로 재접속한다 - 게임이나 런처를 다시 켤 필요가 없다.
+let reloginWatch = null;
+const modIoPaths = (root, name) => [path.join(root, `.luna-${name}`), path.join(root, `.nova-${name}`)];
+const modIoUnlinkAll = (root, name) => { for (const p of modIoPaths(root, name)) { try { fs.unlinkSync(p); } catch (_) {} } };
+function startReloginWatcher(runRoot) {
+  stopReloginWatcher();
+  if (!runRoot) return;
+  modIoUnlinkAll(runRoot, "relogin.json");
+  modIoUnlinkAll(runRoot, "relogin-result.json");
+  const w = (reloginWatch = { runRoot, lastMtime: 0, timer: null, busy: false });
+  w.timer = setInterval(async () => {
+    const reqPath = modIoPaths(runRoot, "relogin.json").find((p) => fs.existsSync(p));
+    if (!reqPath) return;
+    let st;
+    try { st = fs.statSync(reqPath); } catch (_) { return; }
+    if (st.mtimeMs === w.lastMtime) return;
+    w.lastMtime = st.mtimeMs;
+    let req;
+    try { req = JSON.parse(fs.readFileSync(reqPath, "utf-8")); } catch (_) { return; }
+    if (req.action !== "refresh" || w.busy) return;
+    w.busy = true;
+    try { await reloginRefresh(runRoot); } finally { w.busy = false; }
+  }, 400);
+}
+function stopReloginWatcher() {
+  const w = reloginWatch;
+  if (!w) return;
+  if (w.timer) clearInterval(w.timer);
+  modIoUnlinkAll(w.runRoot, "relogin.json");
+  modIoUnlinkAll(w.runRoot, "relogin-result.json");
+  reloginWatch = null;
+}
+// 저장된 계정 토큰을 강제로 새로 받아(mc.refresh(true)) 서명된 결과 파일로 내려 줌
+async function reloginRefresh(runRoot) {
+  try {
+    const acc = secure.get("account");
+    if (!acc?.savedToken) { log("[세션 새로고침] 저장된 계정이 없어 새로 받지 못함"); return; }
+    const auth = new Auth("select_account");
+    let mc = await tokenUtils.fromMclcToken(auth, acc.savedToken);
+    if (!mc) { log("[세션 새로고침] 저장된 로그인 정보를 읽지 못함"); return; }
+    mc = await Promise.race([
+      mc.refresh(true), // 만료 여부와 상관없이 새로 받음 (세션이 이미 죽어 있으므로)
+      new Promise((_, reject) => setTimeout(() => reject(new Error("토큰 갱신 시간 초과")), 10000)),
+    ]);
+    const mclcAuth = mc.mclc();
+    const accessToken = mclcAuth?.access_token || mclcAuth?.accessToken || null;
+    if (!accessToken) { log("[세션 새로고침] 새 액세스 토큰을 받지 못함"); return; }
+    const prof = profileFrom(mclcAuth, acc.uuid);
+    const name = prof.name || acc.name;
+    const uuid = String(prof.uuid || acc.uuid || "").replace(/-/g, "").toLowerCase();
+    try { saveAccount({ name, uuid }, mc.mclc(true), acc.source || "microsoft"); } catch (_) {}
+    cachedAuth = mclcAuth;
+    const ts = Date.now();
+    const hmac = (prefix) => crypto.createHmac("sha256", LAUNCH_SECRET).update(prefix + ts).digest("hex");
+    const tokenHash = crypto.createHash("sha256").update(String(accessToken), "utf-8").digest("hex");
+    fs.writeFileSync(path.join(runRoot, ".nova-relogin-result.json"), JSON.stringify({ ts, sig: hmac("NovaClient::"), uuid, name, accessToken }), "utf-8");
+    fs.writeFileSync(path.join(runRoot, ".luna-relogin-result.json"),
+      JSON.stringify({ ts, sig: hmac("LunaClient::"), sig2: novaSig2("relogin", ts, uuid + "|" + name + "|" + tokenHash), uuid, name, accessToken }), "utf-8");
+    log("[세션 새로고침] 새 세션 발급 완료: " + name);
+  } catch (err) {
+    log("[세션 새로고침] 실패: " + loginErrorCode(err));
+  }
+}
+
 // ─── 내 클라이언트 모드(Luna's Light) · Fabric API 자동 주입 ───────
 // 노바 클라이언트와 같은 방식: 실행할 때마다 mods 폴더에 넣고, 서명한 실행 토큰을 같이 써서
 // 모드가 "정식 런처로 켰다"는 걸 알게 함(토큰이 없으면 모드가 기능을 스스로 끔).
@@ -2978,8 +3047,8 @@ async function writeModLaunchFile(pendingServer) {
       accounts: prof.uuid ? [{ uuid: prof.uuid, name: prof.name, accessToken: cachedAuth?.access_token || cachedAuth?.accessToken || null }] : [],
       // 너굴마을 전용 테마 고정 (accent 만 보는 옛 모드도 초록으로 보이게)
       cosmetics: { accent: NEOGUL_INGAME_THEME.palette.accent, theme: NEOGUL_INGAME_THEME },
-      // 재접속(세션 새로고침 후 재접속) 기능 끔 - 너굴라이언트는 이 요청을 처리하지 않음
-      features: { relogin: false, reconnect: false },
+      // 세션 새로고침 후 재접속: 켬 (startReloginWatcher 가 요청을 처리). 자동 재접속은 끔
+      features: { relogin: true, reconnect: false },
       setupPrefsPath: SETUP_PREFS,
       ...(pendingServer ? { pendingServer: `${SERVER.host}:${SERVER.port}`, pendingServerName: SERVER.name } : {}),
     };
