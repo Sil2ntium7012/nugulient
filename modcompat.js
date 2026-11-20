@@ -60,24 +60,42 @@ function matches(pred, version) {
   return unknown; // 읽지 못한 조건이 있으면 통과
 }
 
-// jar 에서 필요한 정보만
+// jar 에서 필요한 정보만. nested = 안에 든 jar(JiJ)들의 정보(안의 안까지 펼침)
+function parseModJson(zip) {
+  const entry = zip.getEntry("fabric.mod.json");
+  if (!entry) return null;
+  const j = JSON.parse(entry.getData().toString("utf-8").replace(/[\u0000-\u001f]+/g, " "));
+  return {
+    id: String(j.id || ""),
+    name: String(j.name || j.id || ""),
+    version: String(j.version || ""),
+    depends: j.depends && typeof j.depends === "object" ? j.depends : {},
+    provides: [String(j.id || ""), ...(Array.isArray(j.provides) ? j.provides.map(String) : [])].filter(Boolean),
+    jars: Array.isArray(j.jars) ? j.jars.map((n) => String(n.file || "")).filter(Boolean) : [],
+  };
+}
+function collectNested(zip, info, out, depth) {
+  if (depth > 3) return;
+  for (const f of info.jars) {
+    try {
+      const inner = zip.getEntry(f);
+      if (!inner) continue;
+      const iz = new AdmZip(inner.getData());
+      const ii = parseModJson(iz);
+      if (!ii) continue;
+      out.push({ id: ii.id, name: ii.name, depends: ii.depends, provides: ii.provides });
+      collectNested(iz, ii, out, depth + 1);
+    } catch (_) {}
+  }
+}
 function readMod(file) {
   try {
     const zip = new AdmZip(file);
-    const entry = zip.getEntry("fabric.mod.json");
-    if (!entry) return null;
-    const j = JSON.parse(entry.getData().toString("utf-8").replace(/[\u0000-\u001f]+/g, " "));
-    const provides = [String(j.id || ""), ...(Array.isArray(j.provides) ? j.provides.map(String) : [])].filter(Boolean);
-    // 안에 든 jar(JiJ)가 내놓는 id 까지 (Fabric API 모듈 등)
-    for (const n of Array.isArray(j.jars) ? j.jars : []) {
-      try {
-        const inner = zip.getEntry(String(n.file || ""));
-        if (!inner) continue;
-        const ij = JSON.parse(new AdmZip(inner.getData()).getEntry("fabric.mod.json").getData().toString("utf-8").replace(/[\u0000-\u001f]+/g, " "));
-        provides.push(String(ij.id || ""), ...(Array.isArray(ij.provides) ? ij.provides.map(String) : []));
-      } catch (_) {}
-    }
-    return { id: String(j.id || ""), name: String(j.name || j.id || ""), version: String(j.version || ""), depends: j.depends && typeof j.depends === "object" ? j.depends : {}, provides: provides.filter(Boolean) };
+    const info = parseModJson(zip);
+    if (!info) return null;
+    const nested = [];
+    collectNested(zip, info, nested, 1);
+    return { id: info.id, name: info.name, version: info.version, depends: info.depends, provides: info.provides, nested };
   } catch (_) {
     return null;
   }
@@ -85,29 +103,49 @@ function readMod(file) {
 
 const ALWAYS = new Set(["minecraft", "java", "fabricloader", "fabric-loader", "mixinextras"]);
 // mods: [{ file, info }] (info = readMod 결과) → 켜질 수 없는 것들 [{ file, name, reason }]
-// 게임 버전이 안 맞는 것, 꼭 필요한 다른 모드가 없는 것(연쇄 포함)
+//   - 게임 버전이 안 맞는 것
+//   - 꼭 필요한 다른 모드가 없는 것 (연쇄 포함)
+//   - 안에 든 모드(JiJ)가 켜질 수 없는데 그걸 꼭 필요로 하는 것
 // opts.lenientFabric: Fabric API 가 아직 안 깔린 상태(가져오기)에서 "fabric-…" 의존은 있는 걸로 침
 function findIncompatible(mods, mcVersion, opts = {}) {
   const bad = new Map();
-  const alive = () => mods.filter((m) => m.info && !bad.has(m.file));
+  const mcOk = (d) => d.minecraft == null || matches(d.minecraft, mcVersion);
+  const depOk = (dep, have) => ALWAYS.has(dep) || have.has(dep) || (opts.lenientFabric && dep.startsWith("fabric-"));
   for (const m of mods) {
     if (!m.info) continue;
     const need = m.info.depends.minecraft;
-    if (need != null && !matches(need, mcVersion)) {
-      bad.set(m.file, { file: m.file, name: m.info.name, reason: `마인크래프트 ${Array.isArray(need) ? need.join(" 또는 ") : need} 용` });
-    }
+    if (!mcOk(m.info.depends)) bad.set(m.file, { file: m.file, name: m.info.name, reason: `마인크래프트 ${Array.isArray(need) ? need.join(" 또는 ") : need} 용` });
   }
-  for (let round = 0; round < 8; round++) {
+  // 안에 든 모드: 게임 버전이 안 맞으면 처음부터 없는 걸로 침
+  const dead = new Set(); // 켜질 수 없는 안쪽 모드 (객체)
+  const why = new Map(); // 안쪽 모드 id → 이유
+  for (const m of mods) for (const n of m.info?.nested || []) if (!mcOk(n.depends)) { dead.add(n); why.set(n.id, `안에 든 '${n.name}' 가 마인크래프트 ${n.depends.minecraft} 용`); }
+  for (let round = 0; round < 12; round++) {
     const have = new Set();
-    for (const m of alive()) for (const p of m.info.provides) have.add(p);
+    for (const m of mods) {
+      if (!m.info || bad.has(m.file)) continue;
+      for (const p of m.info.provides) have.add(p);
+      for (const n of m.info.nested || []) if (!dead.has(n)) for (const p of n.provides) have.add(p);
+    }
     let changed = false;
-    for (const m of alive()) {
-      for (const dep of Object.keys(m.info.depends)) {
-        if (ALWAYS.has(dep) || have.has(dep)) continue;
-        if (opts.lenientFabric && dep.startsWith("fabric-")) continue;
-        bad.set(m.file, { file: m.file, name: m.info.name, reason: `필요한 모드 '${dep}' 가 없음` });
+    for (const m of mods) {
+      if (!m.info || bad.has(m.file)) continue;
+      for (const n of m.info.nested || []) {
+        if (dead.has(n)) continue;
+        const miss = Object.keys(n.depends).find((dep) => !depOk(dep, have));
+        if (miss) { dead.add(n); why.set(n.id, `안에 든 '${n.name}' 에 필요한 '${miss}' 가 없음`); changed = true; }
+      }
+      // Fabric 은 안에 든 모드를 그 모드의 필수 부품으로 봄: 못 켜지는데 같은 id 를 내놓는 다른 모드도 없으면 바깥 모드도 못 켜짐
+      const broken = (m.info.nested || []).find((n) => dead.has(n) && n.id && !have.has(n.id));
+      if (broken) {
+        bad.set(m.file, { file: m.file, name: m.info.name, reason: why.get(broken.id) || `안에 든 '${broken.name}' 를 켤 수 없음` });
         changed = true;
-        break;
+        continue;
+      }
+      const miss = Object.keys(m.info.depends).find((dep) => !depOk(dep, have));
+      if (miss) {
+        bad.set(m.file, { file: m.file, name: m.info.name, reason: why.get(miss) || `필요한 모드 '${miss}' 가 없음` });
+        changed = true;
       }
     }
     if (!changed) break;
