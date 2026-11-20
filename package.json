@@ -23,6 +23,7 @@
       "main.js",
       "preload.js",
       "catalog.js",
+      "modcompat.js",
       "src/**/*",
       "package.json",
       "build/icon.png",

@@ -1608,7 +1608,7 @@ $("#impRun").addEventListener("click", async () => {
   $("#importModal").hidden = true;
   const parts = [r.mods ? `모드 ${r.mods}개` : "", r.resourcepacks ? `리소스팩 ${r.resourcepacks}개` : "", r.shaders ? `쉐이더 ${r.shaders}개` : "", r.settings ? "설정" : ""].filter(Boolean);
   toast(parts.length ? `${parts.join(" · ")}을(를) 가져왔습니다. 다음 PLAY 부터 적용됩니다.` : "새로 가져올 것이 없습니다. (이미 다 있습니다)", "ok");
-  if (r.skipped?.length) toast(`Fabric 모드가 아니라서 ${r.skipped.length}개는 건너뛰었습니다.`);
+  if (r.skipped?.length) toastAction(`26.1.2 Fabric 에서 켜질 수 없는 모드 ${r.skipped.length}개는 가져오지 않았습니다: ${r.skipped.slice(0, 3).join(", ")}${r.skipped.length > 3 ? " 외" : ""}`, "확인", () => {});
   if ($("#page-mods").classList.contains("active")) { try { renderInstalled?.(); } catch (_) {} }
 });
 setTimeout(() => openImport(true).catch(() => {}), 1500);

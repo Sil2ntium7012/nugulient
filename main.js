@@ -14,6 +14,7 @@ const net = require("net");
 const dns = require("dns").promises;
 const fetch = require("node-fetch");
 const AdmZip = require("adm-zip");
+const MODCOMPAT = require("./modcompat");
 const extractZip = require("extract-zip");
 const tar = require("tar");
 const Store = require("electron-store");
@@ -2142,18 +2143,30 @@ async function importProfile(dir, opts = {}) {
   try {
     if (opts.mods) {
       const have = new Set();
-      for (const f of await modFiles()) { const info = fabricModInfo(path.join(DIRS.mod, f)); if (info?.id) have.add(info.id); }
+      const existing = [];
+      for (const f of await modFiles()) {
+        const info = MODCOMPAT.readMod(path.join(DIRS.mod, f));
+        if (info?.id) have.add(info.id);
+        if (info && !/\.disabled$/i.test(f)) existing.push({ file: "have:" + f, info });
+      }
       const srcDir = path.join(dir, "mods");
+      const cands = [];
       for (const f of (await fsp.readdir(srcDir).catch(() => [])).filter((n) => /\.jar(\.disabled)?$/i.test(n))) {
         const base = plain(f);
         if (IMPORT_SKIP_MOD.test(base)) continue;
-        const info = fabricModInfo(path.join(srcDir, f));
+        const info = MODCOMPAT.readMod(path.join(srcDir, f));
         if (!info) { res.skipped.push(`${base} (Fabric 모드가 아님)`); continue; }
         if (info.id && have.has(info.id)) continue; // 이미 있는 모드
         if (fs.existsSync(path.join(DIRS.mod, base)) || fs.existsSync(path.join(DIRS.mod, base + ".disabled"))) continue;
-        await fsp.copyFile(path.join(srcDir, f), path.join(DIRS.mod, safeName(f)));
-        setInstalledMeta(base, { title: info.name || base.replace(/\.jar$/i, ""), kind: "mod", imported: true });
-        if (info.id) have.add(info.id);
+        cands.push({ file: f, info });
+      }
+      // 26.1.2 에서 켜질 수 없는 모드(다른 버전용 · 필요한 모드가 없는 것)는 가져오지 않음 - 넣으면 게임이 안 켜짐
+      const bad = new Map(MODCOMPAT.findIncompatible([...existing, ...cands], SERVER.mcVersion, { lenientFabric: true }).map((b) => [b.file, b]));
+      for (const c of cands) {
+        const base = plain(c.file);
+        if (bad.has(c.file)) { res.skipped.push(`${c.info.name || base} (${bad.get(c.file).reason})`); continue; }
+        await fsp.copyFile(path.join(srcDir, c.file), path.join(DIRS.mod, safeName(c.file)));
+        setInstalledMeta(base, { title: c.info.name || base.replace(/\.jar$/i, ""), kind: "mod", imported: true });
         res.mods++;
       }
     }
@@ -2768,6 +2781,30 @@ async function removeModChecker() {
   store.delete("modcheckerMeta");
 }
 
+// PLAY 직전: 켜질 수 없는 모드(다른 마크 버전용 · 필요한 모드가 없는 것)를 꺼 둠(.disabled).
+// 그대로 두면 Fabric 이 "호환되지 않는 모드가 있습니다" 창만 띄우고 게임이 안 켜짐. 지우지는 않음.
+// 우리가 끈 걸 사람이 설치됨 탭에서 다시 켰으면 그 뜻을 따름(다시 끄지 않음).
+async function disableIncompatibleMods() {
+  try {
+    const files = (await modFiles()).filter((f) => !/\.disabled$/i.test(f));
+    const mods = files.map((f) => ({ file: f, info: MODCOMPAT.readMod(path.join(DIRS.mod, f)) }));
+    const memo = store.get("compatDisabled") || {};
+    const bad = MODCOMPAT.findIncompatible(mods, SERVER.mcVersion).filter((b) => !b.file.startsWith(BUILTIN_PREFIX) && !memo[b.file]);
+    if (!bad.length) return;
+    for (const b of bad) {
+      await fsp.rename(path.join(DIRS.mod, b.file), path.join(DIRS.mod, b.file + ".disabled")).catch(() => {});
+      memo[b.file] = b.reason;
+      log(`[호환 검사] 끔: ${b.file} - ${b.reason}`);
+    }
+    store.set("compatDisabled", memo);
+    const names = bad.slice(0, 3).map((b) => b.name).join(", ") + (bad.length > 3 ? ` 외 ${bad.length - 3}개` : "");
+    send("toast", { msg: `26.1.2 에서 켜질 수 없는 모드 ${bad.length}개를 꺼 두었습니다: ${names}`, kind: "err" });
+    send("neogul:updated", {});
+  } catch (err) {
+    log("[호환 검사] 실패(그대로 진행): " + (err?.message || err));
+  }
+}
+
 // 돌려주는 값: 모드 처음 설정을 이미 했는지 (안 했으면 바로 접속하지 않음)
 async function prepareBuiltinMods() {
   progress("fabric", 80, "너굴라이언트 모드 준비 중");
@@ -2788,6 +2825,7 @@ async function prepareBuiltinMods() {
   if (!files.some((f) => /^fabric-api-.*\.jar$/i.test(f)) && !installedProjectKeys().has(FABRIC_API_ID)) {
     try { await installProject(FABRIC_API_ID, "mod"); } catch (err) { log("[Fabric API] 설치 실패: " + (err?.message || err)); }
   }
+  await disableIncompatibleMods();
   // 모드 "처음 설정" 화면 때문에 첫 접속이 미뤄지지 않게, 기본값으로 이미 한 것처럼 채워 둠
   // (값은 망고가 노바클에서 처음 설정한 그대로. 게임 안에서 바꾸면 모드가 이 파일을 고침)
   if (!fs.existsSync(SETUP_PREFS)) {
