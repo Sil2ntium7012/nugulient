@@ -2158,6 +2158,7 @@ async function importProfile(dir, opts = {}) {
         if (IMPORT_SKIP_MOD.test(base)) continue;
         const info = MODCOMPAT.readMod(path.join(srcDir, f));
         if (!info) { res.skipped.push(`${base} (Fabric 모드가 아님)`); continue; }
+        if (/^(feather|lunarclient|badlion|labymod)/i.test(info.id)) { res.skipped.push(`${info.name || base} (다른 클라이언트 전용 모드)`); continue; }
         if (info.id && have.has(info.id)) continue; // 이미 있는 모드
         if (fs.existsSync(path.join(DIRS.mod, base)) || fs.existsSync(path.join(DIRS.mod, base + ".disabled"))) continue;
         cands.push({ file: f, info });

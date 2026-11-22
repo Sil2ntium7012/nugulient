@@ -65,7 +65,19 @@ function parseModJson(zip) {
   const entry = zip.getEntry("fabric.mod.json");
   if (!entry) return null;
   const j = JSON.parse(entry.getData().toString("utf-8").replace(/[\u0000-\u001f]+/g, " "));
+  // 접근 넓히개(accessWidener / classTweaker) 파일의 이름 체계. 26.x 는 "official" 이어야 하고,
+  // 예전 버전용 모드는 "intermediary" 라서 게임이 켜지다가 "Failed to read classTweaker file" 로 죽음
+  let awNamespace = null;
+  try {
+    const awFile = typeof j.accessWidener === "string" ? j.accessWidener : null;
+    const awEntry = awFile ? zip.getEntry(awFile) : null;
+    if (awEntry) {
+      const head = awEntry.getData().slice(0, 200).toString("utf-8").split(/\r?\n/)[0].trim().split(/\s+/);
+      if (/^(accessWidener|classTweaker)$/i.test(head[0] || "") && head[2]) awNamespace = head[2].toLowerCase();
+    }
+  } catch (_) {}
   return {
+    awNamespace,
     id: String(j.id || ""),
     name: String(j.name || j.id || ""),
     version: String(j.version || ""),
@@ -83,7 +95,7 @@ function collectNested(zip, info, out, depth) {
       const iz = new AdmZip(inner.getData());
       const ii = parseModJson(iz);
       if (!ii) continue;
-      out.push({ id: ii.id, name: ii.name, depends: ii.depends, provides: ii.provides });
+      out.push({ id: ii.id, name: ii.name, depends: ii.depends, provides: ii.provides, awNamespace: ii.awNamespace });
       collectNested(iz, ii, out, depth + 1);
     } catch (_) {}
   }
@@ -95,7 +107,7 @@ function readMod(file) {
     if (!info) return null;
     const nested = [];
     collectNested(zip, info, nested, 1);
-    return { id: info.id, name: info.name, version: info.version, depends: info.depends, provides: info.provides, nested };
+    return { id: info.id, name: info.name, version: info.version, depends: info.depends, provides: info.provides, awNamespace: info.awNamespace, nested };
   } catch (_) {
     return null;
   }
@@ -110,16 +122,23 @@ const ALWAYS = new Set(["minecraft", "java", "fabricloader", "fabric-loader", "m
 function findIncompatible(mods, mcVersion, opts = {}) {
   const bad = new Map();
   const mcOk = (d) => d.minecraft == null || matches(d.minecraft, mcVersion);
+  // 26.x 부터 게임이 난독화 없이 나와서 이름 체계가 official 뿐임 (그 전 버전은 검사하지 않음)
+  const unobf = (parseVer(mcVersion) || [0])[0] >= 26;
+  const awBad = (x) => unobf && x.awNamespace && x.awNamespace !== "official";
   const depOk = (dep, have) => ALWAYS.has(dep) || have.has(dep) || (opts.lenientFabric && dep.startsWith("fabric-"));
   for (const m of mods) {
     if (!m.info) continue;
     const need = m.info.depends.minecraft;
+    if (awBad(m.info)) { bad.set(m.file, { file: m.file, name: m.info.name, reason: "예전 마인크래프트 버전용 (26.x 에서 켜지지 않음)" }); continue; }
     if (!mcOk(m.info.depends)) bad.set(m.file, { file: m.file, name: m.info.name, reason: `마인크래프트 ${Array.isArray(need) ? need.join(" 또는 ") : need} 용` });
   }
   // 안에 든 모드: 게임 버전이 안 맞으면 처음부터 없는 걸로 침
   const dead = new Set(); // 켜질 수 없는 안쪽 모드 (객체)
   const why = new Map(); // 안쪽 모드 id → 이유
-  for (const m of mods) for (const n of m.info?.nested || []) if (!mcOk(n.depends)) { dead.add(n); why.set(n.id, `안에 든 '${n.name}' 가 마인크래프트 ${n.depends.minecraft} 용`); }
+  for (const m of mods) for (const n of m.info?.nested || []) {
+    if (awBad(n)) { dead.add(n); why.set(n.id, `안에 든 '${n.name}' 가 예전 마인크래프트 버전용`); }
+    else if (!mcOk(n.depends)) { dead.add(n); why.set(n.id, `안에 든 '${n.name}' 가 마인크래프트 ${n.depends.minecraft} 용`); }
+  }
   for (let round = 0; round < 12; round++) {
     const have = new Set();
     for (const m of mods) {
