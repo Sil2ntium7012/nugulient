@@ -141,6 +141,10 @@ const secure = {
 };
 const LOG_PATH = path.join(ROOT, "launcher.log");
 
+// 로그가 너무 커지면(게임 출력까지 다 들어감) 켤 때 한 번 예전 것으로 넘김
+try {
+  if (fs.existsSync(LOG_PATH) && fs.statSync(LOG_PATH).size > 20 * 1024 * 1024) fs.renameSync(LOG_PATH, LOG_PATH.replace(/\.log$/, ".old.log"));
+} catch (_) {}
 function log(msg) {
   try {
     fs.appendFileSync(LOG_PATH, `[${new Date().toISOString()}] ${msg}\n`);
@@ -220,6 +224,16 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  // 게임이 켜져 있는 동안 창을 닫으면 끄지 않고 숨겨만 둠: 런처가 꺼지면 게임 안의
+  // [세션 새로고침 후 재접속] · 듣고 있는 노래 · 모드 미리 받기가 전부 멈춤. 게임을 끄면 그때 같이 꺼짐.
+  mainWindow.on("close", (e) => {
+    if ((gameProcess || launching) && !quittingForReal) {
+      e.preventDefault();
+      closedWhileGame = true;
+      mainWindow.hide();
+      log("[창] 게임 중이라 창만 숨김 (게임을 끄면 런처도 꺼짐)");
+    }
+  });
   // 화면 안의 링크는 전부 외부 브라우저로
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     openExternalSafe(url);
@@ -242,7 +256,9 @@ if (!gotLock) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+    closedWhileGame = false; // 다시 열었으면 게임을 꺼도 런처는 남김
   });
+  app.on("before-quit", () => { quittingForReal = true; });
   app.whenReady().then(() => {
     createWindow();
     setupAutoUpdate();
@@ -250,7 +266,7 @@ if (!gotLock) {
     startSiteInfoSchedule();
     startBuiltinModSchedule();
   });
-  app.on("window-all-closed", () => app.quit());
+  app.on("window-all-closed", () => { if (!gameProcess || quittingForReal) app.quit(); });
   app.on("will-quit", () => { try { stopNowPlayingBridge(); } catch (_) {} });
 }
 
@@ -781,6 +797,8 @@ function ensureServerInList() {
 
 // ─── 실행 ────────────────────────────────────────────────────────────────────
 let gameProcess = null;
+let closedWhileGame = false; // 게임 중에 창을 닫아서 숨겨 둔 상태
+let quittingForReal = false; // 업데이트 설치 등으로 정말 끄는 중
 let launching = false;
 
 ipcMain.handle("launch:status", () => ({ running: !!gameProcess, launching }));
@@ -851,6 +869,14 @@ ipcMain.handle("launch:start", async () => {
         autoInstallSoon(updateState.version);
       }
       else checkUpdateNow(true);
+      if (closedWhileGame && !pendingAutoInstall && updateState.status !== "ready") {
+        // 게임 중에 창을 닫아 두었으면, 게임이 꺼질 때 런처도 끔
+        closedWhileGame = false;
+        quittingForReal = true;
+        app.quit();
+        return;
+      }
+      closedWhileGame = false;
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
