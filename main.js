@@ -1055,6 +1055,62 @@ function setShader(fileName) {
   fs.writeFileSync(IRIS_PROPS, lines.join("\n") + "\n");
 }
 
+// ─── 폰트 리소스팩 만들기 (Nova Client 와 같은 방식) ─────────────────────────
+// 폰트 파일(.ttf/.otf) 하나로 "게임 글꼴을 그 폰트로 바꾸는 리소스팩"을 만들어 넣고 바로 적용함.
+const FONT_PACK_FORMAT = 84; // 26.1 리소스팩 형식 (1.21.9 부터는 min_format/max_format 로 적음)
+// 리소스 이름은 [a-z0-9/._-] 만 됨 - 한글·대문자가 들어간 파일 이름 그대로 쓰면 글꼴 정의가 통째로 버려짐
+function safeFontResourceName(fileName) {
+  const raw = String(fileName || "");
+  const ext = (path.extname(raw).toLowerCase() || ".ttf").replace(/[^a-z0-9.]/g, "");
+  const base = path.basename(raw, path.extname(raw)).toLowerCase().replace(/[^a-z0-9._-]+/g, "_").replace(/_{2,}/g, "_").replace(/^[._-]+|[._-]+$/g, "");
+  return (base || "nugul_font") + (ext || ".ttf");
+}
+function uniquePackPath(destDir, baseName) {
+  let candidate = path.join(destDir, baseName + ".zip");
+  for (let i = 2; fs.existsSync(candidate) && i < 1000; i++) candidate = path.join(destDir, `${baseName} (${i}).zip`);
+  return candidate;
+}
+ipcMain.handle("fontpack:pick", async () => {
+  const r = await dialog.showOpenDialog(mainWindow, { title: "폰트 파일 고르기", properties: ["openFile"], filters: [{ name: "폰트", extensions: ["ttf", "otf"] }] });
+  if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true };
+  const filePath = r.filePaths[0];
+  return { ok: true, filePath, fileName: path.basename(filePath), baseName: path.basename(filePath, path.extname(filePath)) };
+});
+ipcMain.handle("fontpack:build", async (_e, o = {}) => {
+  try {
+    const sourcePath = String(o.filePath || "");
+    const ext = path.extname(sourcePath).toLowerCase();
+    if (![".ttf", ".otf"].includes(ext)) return { ok: false, error: "폰트는 .ttf 또는 .otf 파일만 넣을 수 있습니다." };
+    if (!fs.existsSync(sourcePath)) return { ok: false, error: "폰트 파일을 찾지 못했습니다." };
+    const name = String(o.name || "").replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim() || "너굴 폰트 팩";
+    const zip = new AdmZip();
+    zip.addFile("pack.mcmeta", Buffer.from(JSON.stringify({ pack: { min_format: FONT_PACK_FORMAT, max_format: FONT_PACK_FORMAT, description: `${name} (너굴라이언트에서 만든 폰트 팩)` } }, null, 2), "utf-8"));
+    try { zip.addFile("pack.png", fs.readFileSync(path.join(__dirname, "build", "icon.png"))); } catch (_) {}
+    const fontName = safeFontResourceName(path.basename(sourcePath));
+    zip.addFile(`assets/minecraft/font/${fontName}`, await fsp.readFile(sourcePath));
+    // providers 는 앞쪽이 우선: [내 폰트] → [바닐라 글자들]. 고른 폰트에 없는 글자는 바닐라와 똑같이 나옴.
+    // file 값에 "font/" 를 붙이면 안 됨(게임이 스스로 붙임).
+    const size = Math.min(16, Math.max(6, Number(o.size) || 11));
+    const providers = [
+      { type: "ttf", file: `minecraft:${fontName}`, size, oversample: 2, shift: [0, 0] },
+      { type: "reference", id: "minecraft:include/space" },
+      { type: "reference", id: "minecraft:include/default" },
+      { type: "reference", id: "minecraft:include/unifont" },
+    ];
+    zip.addFile("assets/minecraft/font/default.json", Buffer.from(JSON.stringify({ providers }, null, 2), "utf-8"));
+    const dest = uniquePackPath(DIRS.resourcepack, name);
+    zip.writeZip(dest);
+    const fileName = path.basename(dest);
+    setInstalledMeta(fileName, { title: `${name} (폰트 팩)`, kind: "resourcepack" });
+    if (o.apply !== false && !gameProcess) setResourcePackEnabled(fileName, true);
+    log(`[폰트 팩] 만듦: ${fileName} (${path.basename(sourcePath)}, 크기 ${size})`);
+    return { ok: true, fileName, applied: o.apply !== false && !gameProcess };
+  } catch (err) {
+    log("[폰트 팩] 실패: " + (err?.stack || err));
+    return { ok: false, error: String(err?.message || err) };
+  }
+});
+
 ipcMain.handle("apply:state", () => ({
   resourcePacks: enabledResourcePacks().filter((p) => p.startsWith("file/")).map((p) => p.slice(5)),
   shader: activeShader(),

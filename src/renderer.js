@@ -1612,3 +1612,39 @@ $("#impRun").addEventListener("click", async () => {
   if ($("#page-mods").classList.contains("active")) { try { renderInstalled?.(); } catch (_) {} }
 });
 setTimeout(() => openImport(true).catch(() => {}), 1500);
+
+// ─── 폰트 리소스팩 만들기 ─────────────────────────────────────────────────────
+let FP = { filePath: null };
+function openFontPack() {
+  FP = { filePath: null };
+  $("#fpFile").textContent = "고른 파일이 없습니다";
+  $("#fpName").value = "";
+  $("#fpSize").value = 11;
+  $("#fpSizeVal").textContent = "11";
+  $("#fpBuild").disabled = true;
+  $("#fontPackModal").hidden = false;
+}
+$("#btnFontPack").addEventListener("click", openFontPack);
+$("#toolFontPack").addEventListener("click", openFontPack);
+$("#fpSize").addEventListener("input", (e) => ($("#fpSizeVal").textContent = e.target.value));
+$("#fpPick").addEventListener("click", async () => {
+  const r = await api.fontpack.pick();
+  if (!r.ok) return;
+  FP.filePath = r.filePath;
+  $("#fpFile").textContent = r.fileName;
+  if (!$("#fpName").value.trim()) $("#fpName").value = r.baseName.slice(0, 40);
+  $("#fpBuild").disabled = false;
+});
+$("#fpBuild").addEventListener("click", async () => {
+  if (!FP.filePath) return;
+  const btn = $("#fpBuild");
+  btn.disabled = true;
+  btn.textContent = "만드는 중…";
+  const r = await api.fontpack.build({ filePath: FP.filePath, name: $("#fpName").value, size: Number($("#fpSize").value) });
+  btn.textContent = "만들어서 적용";
+  btn.disabled = false;
+  if (!r.ok) return toast(r.error || "만들지 못했습니다.", "err");
+  $("#fontPackModal").hidden = true;
+  toast(r.applied ? `${r.fileName} 을(를) 만들어 적용했습니다. 다음 PLAY 부터 보입니다.` : `${r.fileName} 을(를) 만들었습니다. 게임 안 리소스팩 목록에서 켜 주십시오.`, "ok");
+  if ($("#page-mods").classList.contains("active")) { try { renderInstalled?.(); updateInstalledCount?.(); } catch (_) {} }
+});

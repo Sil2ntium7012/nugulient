@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld("nugul", {
   },
   onNeogulUpdated: on("neogul:updated"),
   onToast: on("toast"),
+  fontpack: { pick: () => invoke("fontpack:pick"), build: (o) => invoke("fontpack:build", o) },
   importer: {
     scan: () => invoke("import:scan"),
     offered: () => invoke("import:offered"),
