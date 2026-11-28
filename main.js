@@ -2344,17 +2344,28 @@ async function importProfile(dir, opts = {}) {
       }
     }
     if (opts.settings) {
-      // 조작키 · 화면 설정(options.txt): 그쪽 값을 쓰고, 그쪽에 없는 줄만 우리 것을 남김
+      // 조작키 · 화면 설정(options.txt)
+      //   여기서 게임을 한 번도 안 켠 사람: 그쪽 값을 쓰고, 그쪽에 없는 줄만 우리 것을 남김
+      //   이미 너굴라이언트로 하던 사람(version 줄이 있음): 지금 설정을 그대로 두고, 없는 줄만 더함 (덮어쓰지 않음)
       const src = path.join(dir, "options.txt");
       if (fs.existsSync(src)) {
-        const SKIP = new Set(opts.resourcepacks ? [] : ["resourcePacks", "incompatibleResourcePacks"]);
         const key = (l) => l.slice(0, l.indexOf(":"));
+        const ours = readOptions().filter((l) => l.trim() !== "" && l.includes(":"));
+        const played = ours.some((l) => key(l) === "version");
+        const SKIP = new Set(opts.resourcepacks && !played ? [] : ["resourcePacks", "incompatibleResourcePacks"]);
         const theirs = fs.readFileSync(src, "utf-8").split(/\r?\n/).filter((l) => l.includes(":") && !SKIP.has(key(l)));
-        const theirKeys = new Set(theirs.map(key));
-        const mine = readOptions().filter((l) => l.trim() !== "" && l.includes(":") && !theirKeys.has(key(l)));
-        await fsp.writeFile(OPTIONS, [...theirs, ...mine].join("\n") + "\n", "utf-8");
+        let out;
+        if (played) {
+          const ourKeys = new Set(ours.map(key));
+          out = [...ours, ...theirs.filter((l) => !ourKeys.has(key(l)))];
+        } else {
+          const theirKeys = new Set(theirs.map(key));
+          out = [...theirs, ...ours.filter((l) => !theirKeys.has(key(l)))];
+        }
+        await fsp.writeFile(OPTIONS, out.join("\n") + "\n", "utf-8");
         store.set("mcOptionsImported", "profile-import");
         res.settings = true;
+        res.settingsKept = played;
       }
       // 모드 설정(config) · 쉐이더 설정: 이미 있는 파일은 덮지 않음
       for (const name of ["config", "iris.properties"]) {
