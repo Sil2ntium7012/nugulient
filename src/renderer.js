@@ -1577,7 +1577,7 @@ async function openImport(auto) {
     if (!r.first) {
       if (r.firstLogs) {
         api.importer.offered();
-        if (usable.some((it) => it.counts.logs)) toastAction("예전 런처에서 하던 게임 로그 · 지도 같은 데이터도 가져올 수 있습니다.", "가져오기", () => openImport(false));
+        if (usable.some((it) => it.counts.logs)) toastAction("예전 런처에서 하던 게임 로그를 가져올 수 있습니다.", "가져오기", () => openImport(false));
       }
       return;
     }
@@ -1586,6 +1586,8 @@ async function openImport(auto) {
   }
   IMP.sel = IMP.list.findIndex((it) => it.ok && it.version);
   if (IMP.sel < 0 && usable.length === 1) IMP.sel = IMP.list.indexOf(usable[0]);
+  $("#impLogs").checked = true;
+  for (const id of ["impMods", "impRp", "impShader", "impSettings", "impData"]) $("#" + id).checked = false;
   renderImportList();
   $("#importModal").hidden = false;
 }
@@ -1604,6 +1606,9 @@ $("#impRun").addEventListener("click", async () => {
   if (!it) return;
   const opts = { mods: $("#impMods").checked, resourcepacks: $("#impRp").checked, shaders: $("#impShader").checked, settings: $("#impSettings").checked, logs: $("#impLogs").checked, data: $("#impData").checked };
   if (!opts.mods && !opts.resourcepacks && !opts.shaders && !opts.settings && !opts.logs && !opts.data) return toast("가져올 항목을 하나 이상 골라 주십시오.", "err");
+  // 로그 말고 다른 것까지 고르면 한 번 더 물어봄 (모드 등은 함부로 넣지 않게)
+  const extra = [opts.mods && "모드", opts.resourcepacks && "리소스팩", opts.shaders && "쉐이더", opts.settings && "설정", opts.data && "그 밖의 데이터"].filter(Boolean);
+  if (extra.length && !confirm(`${extra.join(" · ")}까지 가져오시겠습니까?\n\n"${it.name}" (${it.source}) 에서 복사합니다. 이미 있는 것은 덮어쓰지 않습니다.${opts.mods ? "\n모드는 너굴마을에서 허용되는 것인지 직접 확인해 주십시오." : ""}`)) return;
   const btn = $("#impRun");
   btn.disabled = true;
   btn.textContent = "가져오는 중…";

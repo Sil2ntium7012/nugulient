@@ -710,3 +710,5 @@ img.ri-icon { object-fit: contain; background: var(--bg-3); }
 .fp-row input[type="range"] { flex: 1; accent-color: var(--accent); }
 #fpSizeVal { width: 34px; text-align: right; font-weight: 700; }
 #fpFile { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.imp-more-head { margin-top: 2px; }

@@ -458,15 +458,18 @@
   <div class="modal-card importer">
     <button class="modal-x" data-close><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
     <h2>다른 런처에서 프로필 가져오기</h2>
-    <p class="muted small" id="importSub">쓰던 26.1.2 Fabric 프로필의 모드 · 리소스팩 · 쉐이더 · 설정 · 게임 로그 · 지도 같은 데이터를 복사해 옵니다. 원래 프로필은 그대로 두고, 너굴라이언트에 이미 있는 것은 덮어쓰지 않고 없는 것만 더합니다.</p>
+    <p class="muted small" id="importSub">예전 런처에서 하던 게임 로그를 복사해 옵니다. 원래 프로필은 그대로 두고, 너굴라이언트에 이미 있는 것은 덮어쓰지 않고 없는 것만 더합니다.</p>
     <div class="imp-list" id="importList"></div>
     <div class="imp-opts">
-      <label><input type="checkbox" id="impMods" checked /> 모드</label>
-      <label><input type="checkbox" id="impRp" checked /> 리소스팩</label>
-      <label><input type="checkbox" id="impShader" checked /> 쉐이더</label>
-      <label><input type="checkbox" id="impSettings" checked /> 설정 (조작키 · 모드 설정)</label>
       <label><input type="checkbox" id="impLogs" checked /> 게임 로그 (채팅 · 거래 기록)</label>
-      <label><input type="checkbox" id="impData" checked /> 그 밖의 데이터 (지도 · 웨이포인트 · 스크린샷 등)</label>
+    </div>
+    <p class="muted small imp-more-head">아래는 필요할 때만 고르십시오. 고르면 한 번 더 확인합니다.</p>
+    <div class="imp-opts">
+      <label><input type="checkbox" id="impMods" /> 모드</label>
+      <label><input type="checkbox" id="impRp" /> 리소스팩</label>
+      <label><input type="checkbox" id="impShader" /> 쉐이더</label>
+      <label><input type="checkbox" id="impSettings" /> 설정 (조작키 · 모드 설정)</label>
+      <label><input type="checkbox" id="impData" /> 그 밖의 데이터 (지도 · 웨이포인트 · 스크린샷 등)</label>
     </div>
     <div class="imp-actions">
       <button class="btn ghost sm" id="impPick">폴더 직접 고르기</button>
