@@ -2149,8 +2149,9 @@ function describeInstance(source, name, gameDir, meta = {}) {
     resourcepacks: countIn(path.join(gameDir, "resourcepacks"), /./),
     shaders: countIn(path.join(gameDir, "shaderpacks"), /^(?!.*\.txt$).+/i),
     settings: fs.existsSync(path.join(gameDir, "options.txt")),
+    logs: countIn(path.join(gameDir, "logs"), /\.log(\.gz)?$/i),
   };
-  if (!counts.mods && !counts.resourcepacks && !counts.shaders && !counts.settings) return null;
+  if (!counts.mods && !counts.resourcepacks && !counts.shaders && !counts.settings && !counts.logs) return null;
   let ok = true, reason = "";
   if (version && version !== SERVER.mcVersion) { ok = false; reason = `${version} 버전이라 가져올 수 없습니다`; }
   else if (loader && loader !== "fabric") { ok = false; reason = `${loader === "forge" ? "Forge" : loader} 프로필이라 가져올 수 없습니다`; }
@@ -2220,10 +2221,85 @@ async function copyNew(src, dest) {
   await fsp.cp(src, dest, { recursive: true, force: false, errorOnExist: false });
   return true;
 }
+// 게임 로그(채팅 · 거래 기록이 들어 있음 - 기록 앱이 읽음)를 우리 logs 폴더로 복사.
+//   날짜가 붙은 압축 로그(2026-11-20-1.log.gz): 같은 이름이 있으면 그 날짜의 다음 번호로
+//   latest.log: 게임이 다음에 켜질 때 덮어쓰므로, 마지막으로 고쳐진 날짜의 압축 로그로 바꿔서 넣음
+async function importLogs(srcDir) {
+  const zlib = require("zlib");
+  const destDir = path.join(GAME_DIR, "logs");
+  await fsp.mkdir(destDir, { recursive: true });
+  const names = (await fsp.readdir(srcDir).catch(() => [])).filter((n) => /\.log(\.gz)?$/i.test(n));
+  const sizes = new Map(); // 이미 있는 파일 (이름 → 크기) - 같은 걸 두 번 넣지 않게
+  for (const n of await fsp.readdir(destDir).catch(() => [])) { try { sizes.set(n, fs.statSync(path.join(destDir, n)).size); } catch (_) {} }
+  const freeName = (date) => { for (let i = 1; i < 10000; i++) { const n = `${date}-${i}.log.gz`; if (!sizes.has(n)) return n; } return `${date}-${Date.now()}.log.gz`; };
+  const done = new Set(store.get("importedLogs") || []); // 원본 경로|크기|수정시각
+  let count = 0;
+  for (const n of names) {
+    try {
+      const src = path.join(srcDir, n);
+      const st = fs.statSync(src);
+      if (!st.isFile() || !st.size) continue;
+      const key = `${src}|${st.size}|${Math.round(st.mtimeMs)}`;
+      if (done.has(key)) continue;
+      const dated = n.match(/^(\d{4}-\d{2}-\d{2})-\d+\.log\.gz$/i);
+      if (dated) {
+        if (sizes.get(n) === st.size) { done.add(key); continue; } // 같은 파일이 이미 있음
+        const dest = sizes.has(n) ? freeName(dated[1]) : n;
+        await fsp.copyFile(src, path.join(destDir, dest));
+        await fsp.utimes(path.join(destDir, dest), st.atime, st.mtime).catch(() => {});
+        sizes.set(dest, st.size);
+      } else if (/^(latest|debug)\.log$/i.test(n)) {
+        if (!/^latest\.log$/i.test(n)) continue; // debug.log 는 필요 없음
+        const d = new Date(st.mtimeMs - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+        const dest = freeName(d);
+        await fsp.writeFile(path.join(destDir, dest), zlib.gzipSync(await fsp.readFile(src)));
+        await fsp.utimes(path.join(destDir, dest), st.atime, st.mtime).catch(() => {});
+        sizes.set(dest, -1);
+      } else {
+        continue; // 그 밖의 로그(모드가 따로 쓰는 것 등)는 넣지 않음
+      }
+      done.add(key);
+      count++;
+    } catch (err) {
+      log(`[가져오기] 로그 ${n} 실패: ` + (err?.message || err));
+    }
+  }
+  store.set("importedLogs", [...done].slice(-5000));
+  return count;
+}
+// 그 밖의 데이터 전부: 지도 · 웨이포인트(xaero, journeymap 등) · 스크린샷 · 서버 목록 · 모드가 게임 폴더에 따로 두는 파일들.
+// 게임 자체 파일 · 캐시 · 싱글 월드처럼 크거나 필요 없는 것만 빼고, 이미 있는 파일은 덮지 않음.
+const IMPORT_DATA_SKIP = new Set(["mods", "resourcepacks", "shaderpacks", "config", "logs", "options.txt", "iris.properties",
+  "versions", "libraries", "assets", "natives", "bin", "runtime", "jre", "java", "meta", "cache", "caches", "webcache", "webcache2", "downloads",
+  "crash-reports", "debug", "saves", "backups", "server-resource-packs", "clips", "replay_recordings", "replay_videos", ".fabric", ".mixin.out", ".cache", ".git",
+  "launcher_profiles.json", "launcher_accounts.json", "launcher_accounts_microsoft_store.json", "launcher_msa_credentials.bin", "launcher_msa_credentials_microsoft_store.bin",
+  "launcher_settings.json", "launcher_log.txt", "launcher_cef_log.txt", "launcher_entitlements.json", "launcher_entitlements_microsoft_store.json", "launcher_gamer_pics.json",
+  "launcher_gamer_pics_microsoft_store.json", "launcher_product_state.json", "launcher_ui_state.json", "launcher_ui_state_microsoft_store.json", "treatment_tags.json",
+  "usercache.json", "usernamecache.json", "realms_persistence.json", "command_history.txt", "hs_err_pid.log",
+  "minecraftinstance.json", "profile.json", "modrinth.index.json", "instance.cfg", "mmc-pack.json", "instance.json", "icon.png", "icon.jpeg"]);
+async function importOtherData(dir) {
+  let count = 0;
+  for (const ent of await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])) {
+    const n = ent.name;
+    if (IMPORT_DATA_SKIP.has(n.toLowerCase()) || /^\.(luna|nova)-/i.test(n) || /^hs_err_pid|\.(exe|dll|lnk|tmp|lock)$/i.test(n)) continue;
+    if (!ent.isDirectory() && !ent.isFile()) continue;
+    try {
+      const dest = path.join(GAME_DIR, safeName(n));
+      const existed = fs.existsSync(dest);
+      if (ent.isFile() && existed) continue;
+      await fsp.cp(path.join(dir, n), dest, { recursive: true, force: false, errorOnExist: false });
+      if (!existed) count++;
+    } catch (err) {
+      log(`[가져오기] ${n} 실패: ` + (err?.message || err));
+    }
+  }
+  return count;
+}
+
 async function importProfile(dir, opts = {}) {
   if (gameProcess || launching) return { ok: false, error: "게임을 끈 다음에 해 주십시오." };
   if (!dir || !fs.existsSync(dir)) return { ok: false, error: "폴더를 찾지 못했습니다." };
-  const res = { ok: true, mods: 0, resourcepacks: 0, shaders: 0, settings: false, skipped: [] };
+  const res = { ok: true, mods: 0, resourcepacks: 0, shaders: 0, settings: false, logs: 0, data: 0, skipped: [] };
   try {
     if (opts.mods) {
       const have = new Set();
@@ -2286,6 +2362,9 @@ async function importProfile(dir, opts = {}) {
         if (fs.existsSync(s)) await fsp.cp(s, path.join(GAME_DIR, name), { recursive: true, force: false, errorOnExist: false }).catch(() => {});
       }
     }
+    if (opts.logs) res.logs = await importLogs(path.join(dir, "logs"));
+    if (opts.data) res.data = await importOtherData(dir);
+    log(`[가져오기] 로그 ${res.logs || 0} · 그 밖의 데이터 ${res.data || 0}`);
     log(`[가져오기] ${dir} → 모드 ${res.mods} · 리소스팩 ${res.resourcepacks} · 쉐이더 ${res.shaders} · 설정 ${res.settings ? "O" : "X"} · 건너뜀 ${res.skipped.length}`);
     send("neogul:updated", {});
     return res;
@@ -2297,9 +2376,10 @@ async function importProfile(dir, opts = {}) {
 ipcMain.handle("import:scan", () => {
   const list = scanImportSources();
   const first = !store.get("importOffered");
-  return { list, first };
+  // 로그 · 데이터 가져오기는 나중에 생긴 기능이라, 이미 옮겨 온 사람에게도 한 번 알려 줌
+  return { list, first, firstLogs: !store.get("importLogsOffered") };
 });
-ipcMain.handle("import:offered", () => { store.set("importOffered", Date.now()); return true; });
+ipcMain.handle("import:offered", () => { store.set("importOffered", Date.now()); store.set("importLogsOffered", Date.now()); return true; });
 ipcMain.handle("import:pick-folder", async () => {
   const r = await dialog.showOpenDialog(mainWindow, { title: "가져올 게임 폴더 (mods 폴더가 들어 있는 폴더)", properties: ["openDirectory"] });
   if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true };

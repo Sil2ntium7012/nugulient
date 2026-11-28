@@ -1557,7 +1557,7 @@ function renderImportList() {
   } else {
     box.innerHTML = IMP.list.map((it, i) => {
       const c = it.counts;
-      const parts = [c.mods ? `모드 ${c.mods}` : "", c.resourcepacks ? `리소스팩 ${c.resourcepacks}` : "", c.shaders ? `쉐이더 ${c.shaders}` : "", c.settings ? "설정" : ""].filter(Boolean).join(" · ");
+      const parts = [c.mods ? `모드 ${c.mods}` : "", c.resourcepacks ? `리소스팩 ${c.resourcepacks}` : "", c.shaders ? `쉐이더 ${c.shaders}` : "", c.settings ? "설정" : "", c.logs ? `로그 ${c.logs}` : ""].filter(Boolean).join(" · ");
       return `<button class="imp-item ${it.ok ? "" : "off"} ${i === IMP.sel ? "sel" : ""}" data-imp="${i}" ${it.ok ? "" : "disabled"}>
         <span class="imp-src">${esc(it.source)}</span>
         <span class="grow"><b>${esc(it.name)}${it.version ? ` · ${esc(it.version)}` : ""}</b>
@@ -1574,7 +1574,13 @@ async function openImport(auto) {
   const usable = IMP.list.filter((it) => it.ok);
   if (auto) {
     // 처음 한 번만: 가져올 만한 프로필이 있을 때만 물어봄
-    if (!r.first) return;
+    if (!r.first) {
+      if (r.firstLogs) {
+        api.importer.offered();
+        if (usable.some((it) => it.counts.logs)) toastAction("예전 런처에서 하던 게임 로그 · 지도 같은 데이터도 가져올 수 있습니다.", "가져오기", () => openImport(false));
+      }
+      return;
+    }
     api.importer.offered();
     if (!usable.length) return;
   }
@@ -1596,8 +1602,8 @@ $("#impPick").addEventListener("click", async () => {
 $("#impRun").addEventListener("click", async () => {
   const it = IMP.list[IMP.sel];
   if (!it) return;
-  const opts = { mods: $("#impMods").checked, resourcepacks: $("#impRp").checked, shaders: $("#impShader").checked, settings: $("#impSettings").checked };
-  if (!opts.mods && !opts.resourcepacks && !opts.shaders && !opts.settings) return toast("가져올 항목을 하나 이상 골라 주십시오.", "err");
+  const opts = { mods: $("#impMods").checked, resourcepacks: $("#impRp").checked, shaders: $("#impShader").checked, settings: $("#impSettings").checked, logs: $("#impLogs").checked, data: $("#impData").checked };
+  if (!opts.mods && !opts.resourcepacks && !opts.shaders && !opts.settings && !opts.logs && !opts.data) return toast("가져올 항목을 하나 이상 골라 주십시오.", "err");
   const btn = $("#impRun");
   btn.disabled = true;
   btn.textContent = "가져오는 중…";
@@ -1606,7 +1612,7 @@ $("#impRun").addEventListener("click", async () => {
   btn.disabled = false;
   if (!r.ok) return toast(r.error || "가져오지 못했습니다.", "err");
   $("#importModal").hidden = true;
-  const parts = [r.mods ? `모드 ${r.mods}개` : "", r.resourcepacks ? `리소스팩 ${r.resourcepacks}개` : "", r.shaders ? `쉐이더 ${r.shaders}개` : "", r.settings ? "설정" : ""].filter(Boolean);
+  const parts = [r.mods ? `모드 ${r.mods}개` : "", r.resourcepacks ? `리소스팩 ${r.resourcepacks}개` : "", r.shaders ? `쉐이더 ${r.shaders}개` : "", r.settings ? "설정" : "", r.logs ? `로그 ${r.logs}개` : "", r.data ? `그 밖의 데이터 ${r.data}개` : ""].filter(Boolean);
   toast(parts.length ? `${parts.join(" · ")}을(를) 가져왔습니다. 다음 PLAY 부터 적용됩니다.` : "새로 가져올 것이 없습니다. (이미 다 있습니다)", "ok");
   if (r.skipped?.length) toastAction(`26.1.2 Fabric 에서 켜질 수 없는 모드 ${r.skipped.length}개는 가져오지 않았습니다: ${r.skipped.slice(0, 3).join(", ")}${r.skipped.length > 3 ? " 외" : ""}`, "확인", () => {});
   if ($("#page-mods").classList.contains("active")) { try { renderInstalled?.(); } catch (_) {} }
